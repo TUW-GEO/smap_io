@@ -25,7 +25,9 @@ Tests for reading the image datasets.
 '''
 
 from smap_io import SPL3SMP_Img
+from smap_io import SPL3SMP_Ds
 import os
+from datetime import datetime
 
 
 def test_SPL3SMP_Img():
@@ -38,3 +40,30 @@ def test_SPL3SMP_Img():
     assert image.data['soil_moisture'].shape == (406, 964)
     # test for correct masking
     assert image.data['soil_moisture'][21, 503] == -9999.
+
+
+def test_SPL3SMP_Ds_read_by_date():
+    root_path = os.path.join(os.path.dirname(__file__),
+                             'test_data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path)
+    image = ds.read(datetime(2015, 4, 1))
+    assert list(image.data.keys()) == ['soil_moisture']
+    assert image.data['soil_moisture'].shape == (406, 964)
+    # test for correct masking
+    assert image.data['soil_moisture'][21, 503] == -9999.
+
+
+def test_SPL3SMP_Ds_iterator():
+    root_path = os.path.join(os.path.dirname(__file__),
+                             'test_data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path)
+    read_img = 0
+    for image in ds.iter_images(datetime(2015, 4, 1),
+                                datetime(2015, 4, 2)):
+        assert list(image.data.keys()) == ['soil_moisture']
+        assert image.data['soil_moisture'].shape == (406, 964)
+        # test for correct masking
+        assert image.data['soil_moisture'][21, 503] == -9999.
+        read_img = read_img + 1
+
+    assert read_img == 2

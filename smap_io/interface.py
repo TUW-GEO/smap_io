@@ -98,3 +98,58 @@ class SPL3SMP_Img(ImageBase):
 
     def close(self):
         pass
+
+
+class SPL3SMP_Ds(MultiTemporalImageBase):
+    """
+    Class for reading a collection of SMAP Level 3 Passive Soil Moisture images.
+
+    Parameters
+    ----------
+    data_path: string
+        root path of the SMAP data files
+    parameter : string or list, optional
+        one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
+        Default : 'soil_moisture'
+    subpath_templ : list, optional
+        If the data is store in subpaths based on the date of the dataset then this list
+        can be used to specify the paths. Every list element specifies one path level.
+    """
+
+    def __init__(self, data_path, parameter='soil_moisture',
+                 subpath_templ=['%Y.%m.%d']):
+
+        ioclass_kws = {'parameter': parameter}
+
+        filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
+        super(SPL3SMP_Ds, self).__init__(data_path, SPL3SMP_Img,
+                                         fname_templ=filename_templ,
+                                         datetime_format="%Y%m%d",
+                                         subpath_templ=subpath_templ,
+                                         exact_templ=False,
+                                         ioclass_kws=ioclass_kws)
+
+    def tstamps_for_daterange(self, start_date, end_date):
+        """
+        return timestamps for daterange,
+
+        Parameters
+        ----------
+        start_date: datetime
+            start of date range
+        end_date: datetime
+            end of date range
+
+        Returns
+        -------
+        timestamps : list
+            list of datetime objects of each available image between
+            start_date and end_date
+        """
+        timestamps = []
+        diff = end_date - start_date
+        for i in range(diff.days + 1):
+            daily_date = start_date + timedelta(days=i)
+            timestamps.append(daily_date)
+
+        return timestamps
