@@ -34,7 +34,7 @@ def test_SPL3SMP_Img():
                          'SMAP_L3_SM_P_20150401_R13080_001.h5')
     ds = SPL3SMP_Img(fname)
     image = ds.read()
-    assert image.data.keys() == ['soil_moisture']
+    assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
     # test for correct masking
     assert image.data['soil_moisture'][21, 503] == -9999.
