@@ -43,7 +43,7 @@ class SPL3SMP_Img(ImageBase):
     mode: string, optional
         mode of opening the file, only 'r' is implemented at the moment
     parameter : string or list, optional
-        one or list of parameters found at http://nsidc.org/data/smap/spl3smp/data-fields
+        one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
     """
 

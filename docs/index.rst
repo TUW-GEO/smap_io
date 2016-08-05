@@ -1,8 +1,8 @@
 ====
-smap
+smap_io
 ====
 
-This is the documentation of **smap**.
+This is the documentation of **smap_io**.
 
 .. note::
 

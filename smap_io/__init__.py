@@ -5,4 +5,4 @@ try:
 except:
     __version__ = 'unknown'
 
-from smap.interface import *
+from smap_io.interface import *

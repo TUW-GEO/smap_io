@@ -1,18 +1,18 @@
 ====
-smap
+smap_io
 ====
 
-.. image:: https://travis-ci.org/TUW-GEO/smap.svg?branch=master
-    :target: https://travis-ci.org/TUW-GEO/smap
+.. image:: https://travis-ci.org/TUW-GEO/smap_io.svg?branch=master
+    :target: https://travis-ci.org/TUW-GEO/smap_io
 
-.. image:: https://coveralls.io/repos/github/TUW-GEO/smap/badge.svg?branch=master
-   :target: https://coveralls.io/github/TUW-GEO/smap?branch=master
+.. image:: https://coveralls.io/repos/github/TUW-GEO/smap_io/badge.svg?branch=master
+   :target: https://coveralls.io/github/TUW-GEO/smap_io?branch=master
 
-.. image:: https://badge.fury.io/py/smap.svg
-    :target: http://badge.fury.io/py/smap
+.. image:: https://badge.fury.io/py/smap_io.svg
+    :target: http://badge.fury.io/py/smap_io
 
-.. image:: https://zenodo.org/badge/12761/TUW-GEO/smap.svg
-   :target: https://zenodo.org/badge/latestdoi/12761/TUW-GEO/smap
+.. image:: https://zenodo.org/badge/12761/TUW-GEO/smap_io.svg
+   :target: https://zenodo.org/badge/latestdoi/12761/TUW-GEO/smap_io
 
 SMAP (Soil Moisture Active Passive) data readers.
 
@@ -27,9 +27,9 @@ commands:
 
 .. code-block:: shell
 
-  conda create -q -n smap-environment numpy h5py pyproj
-  source activate smap-environment
-  pip install smap
+  conda create -q -n smap_io-environment numpy h5py pyproj
+  source activate smap_io-environment
+  pip install smap_io
 
 Supported Products
 ==================
@@ -41,5 +41,5 @@ Documentation
 
 |Documentation Status|
 
-.. |Documentation Status| image:: https://readthedocs.org/projects/smap/badge/?version=latest
-   :target: http://smap.readthedocs.org/
+.. |Documentation Status| image:: https://readthedocs.org/projects/smap_io/badge/?version=latest
+   :target: http://smap_io.readthedocs.org/

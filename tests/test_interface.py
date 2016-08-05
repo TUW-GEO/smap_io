@@ -24,7 +24,7 @@
 Tests for reading the image datasets.
 '''
 
-from smap import SPL3SMP_Img
+from smap_io import SPL3SMP_Img
 import os
 
 
