@@ -1,0 +1,8 @@
+name: smap_io-docs
+channels:
+- defaults
+dependencies:
+- h5py=2.6.0
+- python=2.7
+- pip:
+  - pygeobase==0.3.9
