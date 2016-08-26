@@ -1,6 +1,6 @@
-====
+=======
 smap_io
-====
+=======
 
 .. image:: https://travis-ci.org/TUW-GEO/smap_io.svg?branch=master
     :target: https://travis-ci.org/TUW-GEO/smap_io
