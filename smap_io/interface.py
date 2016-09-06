@@ -24,8 +24,11 @@
 
 '''
 
+import os
 from pygeobase.io_base import ImageBase, MultiTemporalImageBase
 from pygeobase.object_base import Image
+from pynetcf.time_series import GriddedNcOrthoMultiTs
+import pygeogrids
 import h5py
 import numpy as np
 
@@ -173,3 +176,14 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
             timestamps.append(daily_date)
 
         return timestamps
+
+
+class SMAPTs(GriddedNcOrthoMultiTs):
+
+    def __init__(self, ts_path, grid_path=None):
+
+        if grid_path is None:
+            grid_path = os.path.join(ts_path, "grid.nc")
+
+        grid = pygeogrids.netcdf.load_grid(grid_path)
+        super(SMAPTs, self).__init__(ts_path, grid)
