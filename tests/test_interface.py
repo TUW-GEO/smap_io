@@ -50,6 +50,26 @@ def test_SPL3SMP_Img():
         list(image.metadata['soil_moisture'].keys()))
 
 
+def test_SPL3SMP_Img_flatten():
+    fname = os.path.join(os.path.dirname(__file__),
+                         'test_data', 'SPL3SMP', '2015.04.01',
+                         'SMAP_L3_SM_P_20150401_R13080_001.h5')
+    ds = SPL3SMP_Img(fname, flatten=True)
+    image = ds.read()
+    assert list(image.data.keys()) == ['soil_moisture']
+    assert image.data['soil_moisture'].shape == (406 * 964,)
+    # test for correct masking
+    assert image.data['soil_moisture'][21 * 503] == -9999.
+    metadata_keys = [u'_FillValue',
+                     u'coordinates',
+                     u'long_name',
+                     u'valid_min',
+                     u'units',
+                     u'valid_max']
+    assert sorted(metadata_keys) == sorted(
+        list(image.metadata['soil_moisture'].keys()))
+
+
 def test_SPL3SMP_Ds_read_by_date():
     root_path = os.path.join(os.path.dirname(__file__),
                              'test_data', 'SPL3SMP')
@@ -59,6 +79,17 @@ def test_SPL3SMP_Ds_read_by_date():
     assert image.data['soil_moisture'].shape == (406, 964)
     # test for correct masking
     assert image.data['soil_moisture'][21, 503] == -9999.
+
+
+def test_SPL3SMP_Ds_read_by_date_flatten():
+    root_path = os.path.join(os.path.dirname(__file__),
+                             'test_data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path, flatten=True)
+    image = ds.read(datetime(2015, 4, 1))
+    assert list(image.data.keys()) == ['soil_moisture']
+    assert image.data['soil_moisture'].shape == (406 * 964,)
+    # test for correct masking
+    assert image.data['soil_moisture'][21 * 503] == -9999.
 
 
 def test_SPL3SMP_Ds_iterator():

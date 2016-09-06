@@ -45,14 +45,18 @@ class SPL3SMP_Img(ImageBase):
     parameter : string or list, optional
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
+    flatten: boolean, optional
+        If true the read data will be returned as 1D arrays.
     """
 
-    def __init__(self, filename, mode='r', parameter='soil_moisture'):
+    def __init__(self, filename, mode='r', parameter='soil_moisture',
+                 flatten=False):
         super(SPL3SMP_Img, self).__init__(filename, mode=mode)
 
         if type(parameter) != list:
             parameter = [parameter]
         self.parameters = parameter
+        self.flatten = flatten
 
     def read(self, timestamp=None):
 
@@ -91,6 +95,12 @@ class SPL3SMP_Img(ImageBase):
             return_img[parameter] = data
             metadata_img[parameter] = metadata
 
+        if self.flatten:
+            longitude = longitude.flatten()
+            latitude = latitude.flatten()
+            for param in self.parameters:
+                return_img[param] = return_img[param].flatten()
+
         return Image(longitude,
                      latitude,
                      return_img,
@@ -121,12 +131,15 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
     subpath_templ : list, optional
         If the data is store in subpaths based on the date of the dataset then this list
         can be used to specify the paths. Every list element specifies one path level.
+    flatten: boolean, optional
+        If true the read data will be returned as 1D arrays.
     """
 
     def __init__(self, data_path, parameter='soil_moisture',
-                 subpath_templ=['%Y.%m.%d']):
+                 subpath_templ=['%Y.%m.%d'], flatten=False):
 
-        ioclass_kws = {'parameter': parameter}
+        ioclass_kws = {'parameter': parameter,
+                       'flatten': flatten}
 
         filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
         super(SPL3SMP_Ds, self).__init__(data_path, SPL3SMP_Img,
