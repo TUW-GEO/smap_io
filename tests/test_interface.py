@@ -40,6 +40,14 @@ def test_SPL3SMP_Img():
     assert image.data['soil_moisture'].shape == (406, 964)
     # test for correct masking
     assert image.data['soil_moisture'][21, 503] == -9999.
+    metadata_keys = [u'_FillValue',
+                     u'coordinates',
+                     u'long_name',
+                     u'valid_min',
+                     u'units',
+                     u'valid_max']
+    assert sorted(metadata_keys) == sorted(
+        list(image.metadata['soil_moisture'].keys()))
 
 
 def test_SPL3SMP_Ds_read_by_date():

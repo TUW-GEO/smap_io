@@ -57,6 +57,7 @@ class SPL3SMP_Img(ImageBase):
     def read(self, timestamp=None):
 
         return_img = {}
+        metadata_img = {}
 
         try:
             ds = h5py.File(self.filename)
@@ -69,6 +70,7 @@ class SPL3SMP_Img(ImageBase):
         longitude = ds['Soil_Moisture_Retrieval_Data']['longitude'][:]
 
         for parameter in self.parameters:
+            metadata = {}
             param = ds['Soil_Moisture_Retrieval_Data'][parameter]
             data = param[:]
             # mask according to valid_min, valid_max and _FillValue
@@ -79,15 +81,20 @@ class SPL3SMP_Img(ImageBase):
             except KeyError:
                 pass
 
+            # fill metadata dictionary with metadata from image
+            for key in param.attrs:
+                metadata[key] = param.attrs[key]
+
             data = np.where(np.logical_or(data < valid_min, data > valid_max),
                             fill_value,
                             data)
             return_img[parameter] = data
+            metadata_img[parameter] = metadata
 
         return Image(longitude,
                      latitude,
                      return_img,
-                     {},
+                     metadata_img,
                      timestamp)
 
     def write(self, data):
