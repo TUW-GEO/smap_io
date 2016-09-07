@@ -3,4 +3,7 @@
 # scipy>=0.9
 pygeobase
 h5py
-
+pygeogrids
+ease_grid
+repurpose
+pynetcf
