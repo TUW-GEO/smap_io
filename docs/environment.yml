@@ -14,3 +14,4 @@ dependencies:
   - pytesmo
   - pygeogrids
   - repurpose
+  - ease_grid
