@@ -46,7 +46,8 @@ often need for e.g. validation studies. This can be done by stacking the images
 into a netCDF file and choosing the correct chunk sizes or a lot of other
 methods. We have chosen to do it in the following way:
 
-- Store only the reduced gaußian grid points since that saves space.
+- Store the grid points in a 1D array. This also allows reduction of the data
+  volume by e.g. only saving the points over land.
 - Store the time series in netCDF4 in the Climate and Forecast convention
   `Orthogonal multidimensional array representation
   <http://cfconventions.org/cf-conventions/v1.6.0/cf-conventions.html#_orthogonal_multidimensional_array_representation>`_
