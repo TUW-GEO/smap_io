@@ -15,3 +15,5 @@ dependencies:
   - pygeogrids
   - repurpose
   - ease_grid
+  - trollsift
+  - datedown
