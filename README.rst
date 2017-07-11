@@ -27,7 +27,7 @@ commands:
 
 .. code-block:: shell
 
-  conda create -q -n smap_io-environment -c conda-forge numpy h5py pyproj netcdf=1.2.2 pyresample scipy pandas matplotlib
+  conda create -q -n smap_io-environment -c conda-forge numpy h5py pyproj netcdf4=1.2.2 pyresample scipy pandas matplotlib
   source activate smap_io-environment
   pip install smap_io
 
