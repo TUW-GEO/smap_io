@@ -2,15 +2,16 @@ name: smap_io-docs
 channels:
 - conda-forge
 dependencies:
-- h5py=2.6.0
-- python=2.7
+- h5py
+- python=3.6
 - pyresample
 - scipy
 - pandas
-- netcdf4=1.2.2
+- netcdf4
 - matplotlib
+- sphinx
 - pip:
-  - pygeobase==0.3.9
+  - pygeobase
   - pytesmo
   - pygeogrids
   - repurpose
