@@ -41,8 +41,7 @@ from smap_io.interface import SPL3SMP_Ds
 
 def reshuffle(input_root, outputpath,
               startdate, enddate,
-              parameters,
-              imgbuffer=50):
+              parameters, overpass=None, imgbuffer=50):
     """
     Reshuffle method applied to ERA-Interim data.
 
@@ -58,16 +57,25 @@ def reshuffle(input_root, outputpath,
         End date.
     parameters: list
         parameters to read and convert
+    version_id : int
+        Version identification (3 or 5)
+    overpass : str
+        Select 'AM' for the descending overpass or 'PM' for the ascending one.
+        If the version data does not contain multiple overpasses, this must be None
     imgbuffer: int, optional
         How many images to read at once before writing time series.
     """
 
-    input_dataset = SPL3SMP_Ds(input_root, parameter=parameters, flatten=True)
+    input_dataset = SPL3SMP_Ds(input_root, parameter=parameters,
+                               overpass=overpass, flatten=True)
+    global_attr = {'product': 'SPL3SMP'}
+
+    if overpass:
+        global_attr['overpass'] = overpass
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
-    global_attr = {'product': 'SPL3SMP'}
 
     # get time series attributes from first day of data.
     data = input_dataset.read(startdate)
@@ -77,11 +85,9 @@ def reshuffle(input_root, outputpath,
     grid = BasicGrid(lons.flatten(), lats.flatten())
 
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
-                        startdate=startdate, enddate=enddate,
-                        input_grid=grid,
+                        startdate=startdate, enddate=enddate, input_grid=grid,
                         imgbuffer=imgbuffer, cellsize_lat=5.0, cellsize_lon=5.0,
-                        global_attr=global_attr,
-                        ts_attributes=ts_attributes)
+                        global_attr=global_attr, ts_attributes=ts_attributes)
     reshuffler.calc()
 
 
@@ -113,7 +119,10 @@ def parse_args(args):
                         nargs="+",
                         help=("Parameters to convert as strings "
                               "e.g. soil_moisture soil_moisture_error"))
-
+    parser.add_argument("--overpass", type=str, default=None,
+                        help=("Select 'AM' for the descending overpass or 'PM' "
+                              "for the ascending one. Only necessary if dataset "
+                              "contains multiple overpasses"))
     parser.add_argument("--imgbuffer", type=int, default=50,
                         help=("How many images to read at once. Bigger numbers make the "
                               "conversion faster but consume more memory."))
@@ -134,6 +143,7 @@ def main(args):
               args.start,
               args.end,
               args.parameters,
+              args.overpass,
               imgbuffer=args.imgbuffer)
 
 
