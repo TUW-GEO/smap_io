@@ -52,18 +52,3 @@ def test_get_start_end():
     end_should = datetime(2015, 4, 2)
     assert end == end_should
     assert start == start_should
-
-
-def test_download_SPL3SMP_ftp():
-
-    rootpath = tempfile.mkdtemp()
-    startdate = "2015-05-01"
-    enddate = "2015-05-03"
-
-    args = [rootpath, '-s', startdate, '-e', enddate]
-    main(args)
-    folders = glob.glob(os.path.join(rootpath, '*'))
-    assert len(folders) == 3
-    for folder in folders:
-        files = glob.glob(os.path.join(rootpath, folder, '*'))
-        assert len(files) == 3
