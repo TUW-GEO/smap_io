@@ -5,6 +5,8 @@ Changelog
 Version 0.X
 ===========
 
+- Add download module
+- Add SMAP L3 v4 and v5 support
 - Update readme
 
 Version 0.2
