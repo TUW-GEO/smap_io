@@ -1,5 +1,23 @@
 .. include:: ../README.rst
 
+Downloading products
+====================
+
+SMAP products can be downloaded via FTP or HTTPS. In case you want to use HTTPS
+you have to register an account with NASA's Earthdata portal. Instructions can
+be found `here
+<http://disc.sci.gsfc.nasa.gov/registration/registration-for-data-access>`_.
+
+After that you can use the command line program ``smap_download``.
+
+.. code::
+
+   mkdir ~/workspace/smap_data
+   smap_download ~/workspace/smap_data
+
+would download SMAP SPL3SMP data from the FTP server into the folder
+``~/workspace/smap_data``. For more options run ``smap_download -h``.
+
 Reading images
 ==============
 

@@ -7,3 +7,5 @@ pygeogrids
 ease_grid
 repurpose
 pynetcf
+trollsift
+datedown
