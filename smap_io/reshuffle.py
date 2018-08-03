@@ -57,8 +57,6 @@ def reshuffle(input_root, outputpath,
         End date.
     parameters: list
         parameters to read and convert
-    version_id : int
-        Version identification (3 or 5)
     overpass : str
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         If the version data does not contain multiple overpasses, this must be None

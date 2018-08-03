@@ -12,9 +12,9 @@ After that you can use the command line program ``smap_download``.
 .. code::
 
    mkdir ~/workspace/smap_data
-   smap_download ~/workspace/smap_data
+   smap_download ~/workspace/smap_data  --username *name* --password *password*
 
-would download SMAP SPL3SMP data from the FTP server into the folder
+would download all available h5 files of the latest SMAP SPL3SMP data into the folder
 ``~/workspace/smap_data``. For more options run ``smap_download -h``.
 
 Reading images
