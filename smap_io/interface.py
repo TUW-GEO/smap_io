@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 '''
-
+Module to read single SMAP L3 images and image stacks
 '''
 
 import os
@@ -37,27 +37,31 @@ from datetime import timedelta
 
 class SPL3SMP_Img(ImageBase):
     """
-    Class for reading one image of SMAP Level 3 Passive Soil Moisture
+    Class for reading one image of SMAP Level 3 version 5 Passive Soil Moisture
 
     Parameters
     ----------
     filename: string
-        filename of the GLDAS grib file
+        filename of the SMAP h5 file
     mode: string, optional
         mode of opening the file, only 'r' is implemented at the moment
     parameter : string or list, optional
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
+    overpass : str, optional
+        Select 'AM' for the descending overpass or 'PM' for the ascending one.
+        Dataset version must support multiple overpasses, else choose None
     flatten: boolean, optional
         If true the read data will be returned as 1D arrays.
     """
 
     def __init__(self, filename, mode='r', parameter='soil_moisture',
-                 flatten=False):
+                 overpass=None, flatten=False):
         super(SPL3SMP_Img, self).__init__(filename, mode=mode)
 
         if type(parameter) != list:
             parameter = [parameter]
+        self.overpass = overpass
         self.parameters = parameter
         self.flatten = flatten
 
@@ -73,12 +77,24 @@ class SPL3SMP_Img(ImageBase):
             print(" ".join([self.filename, "can not be opened"]))
             raise e
 
-        latitude = ds['Soil_Moisture_Retrieval_Data']['latitude'][:]
-        longitude = ds['Soil_Moisture_Retrieval_Data']['longitude'][:]
+        overpass_str = '_' + self.overpass.upper() if self.overpass else ''
+
+        sm_field = 'Soil_Moisture_Retrieval_Data%s' % overpass_str
+
+        if sm_field not in ds.keys():
+            raise NameError(sm_field, 'Field does not exists. Try deactivating overpass')
+
+        if self.overpass:
+            overpass_str = '_' + self.overpass.lower() if self.overpass.upper() == 'PM' else ''
+        else:
+            overpass_str = ''
+
+        latitude = ds[sm_field]['latitude%s' % overpass_str][:]
+        longitude = ds[sm_field]['longitude%s' % overpass_str][:]
 
         for parameter in self.parameters:
             metadata = {}
-            param = ds['Soil_Moisture_Retrieval_Data'][parameter]
+            param = ds[sm_field][parameter + overpass_str]
             data = param[:]
             # mask according to valid_min, valid_max and _FillValue
             try:
@@ -131,6 +147,9 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
     parameter : string or list, optional
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
+    overpass : str, optional
+        Select 'AM' for the descending overpass or 'PM' for the ascending one.
+        Dataset version must support multiple overpasses, else choose None
     subpath_templ : list, optional
         If the data is store in subpaths based on the date of the dataset then this list
         can be used to specify the paths. Every list element specifies one path level.
@@ -138,10 +157,11 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
         If true the read data will be returned as 1D arrays.
     """
 
-    def __init__(self, data_path, parameter='soil_moisture',
+    def __init__(self, data_path, parameter='soil_moisture', overpass=None,
                  subpath_templ=['%Y.%m.%d'], flatten=False):
 
         ioclass_kws = {'parameter': parameter,
+                       'overpass': overpass,
                        'flatten': flatten}
 
         filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
@@ -178,6 +198,7 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
         return timestamps
 
 
+
 class SMAPTs(GriddedNcOrthoMultiTs):
 
     def __init__(self, ts_path, grid_path=None, **kwargs):
@@ -187,3 +208,8 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
         grid = ncdf.load_grid(grid_path)
         super(SMAPTs, self).__init__(ts_path, grid, **kwargs)
+
+
+
+
+
