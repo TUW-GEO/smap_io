@@ -8,7 +8,7 @@ import argparse
 from functools import partial
 
 import trollsift.parser as parser
-from datetime import datetime
+from datetime import datetime, timedelta
 from datedown.interface import mkdate
 from datedown.dates import daily
 from datedown.urlcreator import create_dt_url
@@ -51,7 +51,10 @@ def wget_download(url, target, username=None, password=None, cookie_file=None,
     """
     cmd_list = ['wget',
                 url,
-                '--retry-connrefused']
+                '--retry-connrefused',
+                '--no-check-certificate']
+
+    cmd_list = cmd_list + ['--auth-no-challenge', 'on']
 
     if recursive:
         cmd_list = cmd_list + ['-P', target]
@@ -84,10 +87,17 @@ def wget_download(url, target, username=None, password=None, cookie_file=None,
     subprocess.call(" ".join(cmd_list), shell=True)
 
 
+def check_dl(url_target):
+    '''
+    Check if the folder exists and is not empty (False if not)
+    '''
+    return os.path.isdir(url_target) and not len(os.listdir(url_target)) == 0
+
+
 def wget_map_download(url_target, username=None, password=None, cookie_file=None,
                       recursive=False, filetypes=None, robots_off=False):
     """
-    copied from datedown.
+    copied from datedown and modified.
 
     variant of the function that only takes one argument.
     Otherwise map_async of the multiprocessing module can not work with the function.
@@ -110,13 +120,18 @@ def wget_map_download(url_target, username=None, password=None, cookie_file=None
     robots_off : bool
         Don't apply server robots rules.
     """
-    wget_download(url_target[0], url_target[1],
-                 username=username,
-                 password=password,
-                 cookie_file=cookie_file,
-                 recursive=recursive,
-                 filetypes=filetypes,
-                 robots_off=robots_off)
+
+    # repeats the download once in cases where no files are downloaded.
+    i =0
+    while (not check_dl(url_target[1])) and i < 2:
+        wget_download(url_target[0], url_target[1],
+                     username=username,
+                     password=password,
+                     cookie_file=cookie_file,
+                     recursive=recursive,
+                     filetypes=filetypes,
+                     robots_off=robots_off)
+        i += 1
 
 
 def download(urls, targets, num_proc=1, username=None, password=None,
@@ -326,6 +341,8 @@ def main(args):
 
     #args.urlsubdirs = args.urlsubdirs[:2]
     dts = list(daily(args.start, args.end))
+
+
     url_create_fn = partial(create_dt_url, root=args.urlroot,
                             fname='', subdirs=args.urlsubdirs)
     fname_create_fn = partial(create_dt_fpath, root=args.localroot,
@@ -345,3 +362,4 @@ def main(args):
 
 def run():
     main(sys.argv[1:])
+
