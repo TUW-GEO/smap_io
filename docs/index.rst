@@ -52,7 +52,7 @@ If you only have a single image you can also read the data directly
    ds = SPL3SMP_Img(fname, overpass='PM')
    image = ds.read()
    assert list(image.data.keys()) == ['soil_moisture']
-   assert image.data['soil_moisture'].shape == (406, 964)
+   assert image.data['soil_moisture_pm'].shape == (406, 964)
 
 Conversion to time series format
 ================================
