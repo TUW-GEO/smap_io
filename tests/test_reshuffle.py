@@ -43,8 +43,9 @@ def test_reshuffle():
     startdate = "2015-04-01"
     enddate = "2015-04-02"
     parameters = ["soil_moisture", "soil_moisture_error"]
+    crid = ["--crid", "13080"]
 
-    args = [inpath, ts_path, startdate, enddate] + parameters
+    args = [inpath, ts_path, startdate, enddate] + parameters + crid
     main(args)
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
     ds = SMAPTs(ts_path)
@@ -56,3 +57,6 @@ def test_reshuffle():
     nptest.assert_almost_equal(ts['soil_moisture'].values,
                                soil_moisture_values_should,
                                decimal=6)
+
+if __name__ == '__main__':
+    test_reshuffle()

@@ -3,15 +3,13 @@ Tests for the download module of GLDAS.
 """
 import os
 from datetime import datetime
-import tempfile
-import glob
 
 from smap_io.download import get_last_formatted_dir_in_dir
 from smap_io.download import get_first_formatted_dir_in_dir
 from smap_io.download import get_last_folder
 from smap_io.download import get_first_folder
 from smap_io.download import folder_get_first_last
-from smap_io.download import main
+from smap_io.download import dates_empty_folders
 
 
 def test_get_last_dir_in_dir():
@@ -52,3 +50,10 @@ def test_get_start_end():
     end_should = datetime(2015, 4, 2)
     assert end == end_should
     assert start == start_should
+
+
+def test_check_downloaded_data():
+    path = os.path.join(os.path.dirname(__file__),
+                        'test_data', 'SPL3SMP')
+    missing = dates_empty_folders(path)
+    assert len(missing) == 0
