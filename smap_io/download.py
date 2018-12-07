@@ -401,7 +401,7 @@ def main(args):
         print('----------------------------------------------------------')
         print('----------------------------------------------------------')
         print('No data has been downloaded for the following dates:')
-        for date in dts: print str(date.date())
+        for date in dts: print(str(date.date()))
 
 def run():
     main(sys.argv[1:])
