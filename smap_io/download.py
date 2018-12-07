@@ -20,6 +20,38 @@ import tempfile
 
 from multiprocessing import Pool
 
+def dates_empty_folders(img_dir, crid=None):
+    '''
+    Checks the download directory for date with empty folders.
+
+    Parameters
+    ----------
+    img_dir : str
+        Directory to count files and folders in
+    crid : int, optional (default:None)
+        If crid is passed, check if any file in each dir contains the crid in
+        the name, else check if there is any file at all.
+    Returns
+    -------
+    miss_dates : list
+        Dates where a folder exists but no file is inside
+    '''
+
+    missing = []
+    for dir, subdirs, files in os.walk(img_dir):
+        if len(subdirs)!=0: continue
+        if crid:
+            cont = [str(crid) in afile for afile in files]
+            if not any(cont): missing.append(dir)
+        else:
+            cont = True if len(files)>0 else False
+            if not cont: missing.append(dir)
+
+    miss_dates = [datetime.strptime(os.path.basename(os.path.normpath(miss_path)), '%Y.%m.%d')
+                  for miss_path in missing]
+
+    return sorted(miss_dates)
+
 def wget_download(url, target, username=None, password=None, cookie_file=None,
                   recursive=False, filetypes=None, robots_off=False):
     """
@@ -123,7 +155,7 @@ def wget_map_download(url_target, username=None, password=None, cookie_file=None
 
     # repeats the download once in cases where no files are downloaded.
     i =0
-    while (not check_dl(url_target[1])) and i < 2:
+    while (not check_dl(url_target[1])) and i < 5:
         wget_download(url_target[0], url_target[1],
                      username=username,
                      password=password,
@@ -297,7 +329,8 @@ def parse_args(args):
                               "If not given then the current date is used."))
     parser.add_argument("--product", choices=["SPL3SMP.004", "SPL3SMP.005"],
                         default="SPL3SMP.005",
-                        help='SMAP product to download. (default: SPL3SMP.005)')
+                        help='SMAP product to download. (default: SPL3SMP.005).'
+                             'See also https://nsidc.org/data/smap/data_versions#L3 ')
     parser.add_argument("--username",
                         help='Username to use for download.')
     parser.add_argument("--password",
@@ -329,9 +362,11 @@ def parse_args(args):
     args.urlsubdirs = prod_urls[args.product]['dirs']
     args.localsubdirs = ['%Y.%m.%d']
 
-    print("Downloading data from {} to {} into folder {}.".format(args.start.isoformat(),
-                                                                  args.end.isoformat(),
-                                                                  args.localroot))
+    print("Downloading SMAP {product} data from {start} to {end} into folder {localroot}."
+          .format(product=args.product,
+                  start=args.start.isoformat(),
+                  end=args.end.isoformat(),
+                  localroot=args.localroot))
     return args
 
 
@@ -341,25 +376,43 @@ def main(args):
 
     #args.urlsubdirs = args.urlsubdirs[:2]
     dts = list(daily(args.start, args.end))
+    i = 0
+    while(len(dts) != 0) and i < 3: # after 3 reties abort
+        url_create_fn = partial(create_dt_url, root=args.urlroot,
+                                fname='', subdirs=args.urlsubdirs)
+        fname_create_fn = partial(create_dt_fpath, root=args.localroot,
+                                  fname='', subdirs=args.localsubdirs)
+        down_func = partial(download,
+                            num_proc=args.n_proc,
+                            username=args.username,
+                            password=args.password,
+                            recursive=True,
+                            filetypes=['h5'],
+                            robots_off=True)
 
+        download_by_dt(dts, url_create_fn,
+                       fname_create_fn, down_func,
+                       recursive=True)
 
-    url_create_fn = partial(create_dt_url, root=args.urlroot,
-                            fname='', subdirs=args.urlsubdirs)
-    fname_create_fn = partial(create_dt_fpath, root=args.localroot,
-                              fname='', subdirs=args.localsubdirs)
-    down_func = partial(download,
-                        num_proc=args.n_proc,
-                        username=args.username,
-                        password=args.password,
-                        recursive=True,
-                        filetypes=['h5'],
-                        robots_off=True)
+        dts = dates_empty_folders(args.localroot) # missing dates
+        i += 1
 
-    download_by_dt(dts, url_create_fn,
-                   fname_create_fn, down_func,
-                   recursive=True)
-
+    if len(dts) != 0:
+        print('----------------------------------------------------------')
+        print('----------------------------------------------------------')
+        print('No data has been downloaded for the following dates:')
+        for date in dts: print str(date.date())
 
 def run():
     main(sys.argv[1:])
+
+
+if __name__ == '__main__':
+    cmd = ['path_to_images',
+           '-s', '2016-09-27', '-e', '2016-09-27',
+           '--product', 'SPL3SMP.005',
+           '--username', '******',
+           '--password', '****',
+           '--n_proc', '1']
+    main(cmd)
 

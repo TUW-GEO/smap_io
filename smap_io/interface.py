@@ -51,6 +51,8 @@ class SPL3SMP_Img(ImageBase):
     overpass : str, optional
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         Dataset version must support multiple overpasses, else choose None
+        Passing PM will result in reading variables called *name*_pm
+        Passing AM will result in reading variables called *name*
     flatten: boolean, optional
         If true the read data will be returned as 1D arrays.
     """
@@ -111,14 +113,14 @@ class SPL3SMP_Img(ImageBase):
             data = np.where(np.logical_or(data < valid_min, data > valid_max),
                             fill_value,
                             data)
-            return_img[parameter] = data
-            metadata_img[parameter] = metadata
+            return_img[parameter + overpass_str] = data
+            metadata_img[parameter + overpass_str] = metadata
 
         if self.flatten:
             longitude = longitude.flatten()
             latitude = latitude.flatten()
             for param in self.parameters:
-                return_img[param] = return_img[param].flatten()
+                return_img[param + overpass_str] = return_img[param + overpass_str].flatten()
 
         return Image(longitude,
                      latitude,
@@ -153,18 +155,24 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
     subpath_templ : list, optional
         If the data is store in subpaths based on the date of the dataset then this list
         can be used to specify the paths. Every list element specifies one path level.
+    crid : int, optional (default: None)
+        Only read files with this specific Composite Release ID.
+        See also https://nsidc.org/data/smap/data_versions#CRID
     flatten: boolean, optional
         If true the read data will be returned as 1D arrays.
     """
 
     def __init__(self, data_path, parameter='soil_moisture', overpass=None,
-                 subpath_templ=['%Y.%m.%d'], flatten=False):
+                 subpath_templ=['%Y.%m.%d'], crid=None, flatten=False):
 
         ioclass_kws = {'parameter': parameter,
                        'overpass': overpass,
                        'flatten': flatten}
+        if crid is None:
+            filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
+        else:
+            filename_templ = "SMAP_L3_SM_P_{datetime}_R%i*.h5" % crid
 
-        filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
         super(SPL3SMP_Ds, self).__init__(data_path, SPL3SMP_Img,
                                          fname_templ=filename_templ,
                                          datetime_format="%Y%m%d",
