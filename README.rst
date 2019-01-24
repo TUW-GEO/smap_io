@@ -42,7 +42,7 @@ commands:
 
 .. code-block:: shell
 
-  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4 pyresample scipy pandas matplotlib
+  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4==1.2.2 pyresample scipy pandas matplotlib
   source activate smap_io
   pip install smap_io
 
