@@ -2,7 +2,7 @@ name: smap_io
 channels:
 - conda-forge
 dependencies:
-- netcdf4=1.2.2
+- netcdf4
 - numpy
 - h5py
 - pandas
@@ -15,4 +15,4 @@ dependencies:
   - pytesmo
   - repurpose
   - trollsift==0.2.1
-
+  - pynetcf
