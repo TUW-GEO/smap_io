@@ -48,7 +48,8 @@ def test_reshuffle():
     args = [inpath, ts_path, startdate, enddate] + parameters + crid
     main(args)
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
-    ds = SMAPTs(ts_path)
+    ds = SMAPTs(ts_path,  parameters=['soil_moisture','soil_moisture_error'],
+                ioclass_kws={'read_bulk': True, 'read_dates': False})
     ts = ds.read_ts(-2.8, 55.4)
     ds.grid.arrcell[35 * 964 + 474] == 1289
     soil_moisture_values_should = np.array(
@@ -57,6 +58,3 @@ def test_reshuffle():
     nptest.assert_almost_equal(ts['soil_moisture'].values,
                                soil_moisture_values_should,
                                decimal=6)
-
-if __name__ == '__main__':
-    test_reshuffle()
