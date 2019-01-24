@@ -8,4 +8,4 @@ ease_grid
 repurpose
 trollsift==0.2.1
 datedown
-pynetcf
+pynetcf==0.1.18
