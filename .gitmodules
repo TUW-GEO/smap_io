@@ -1,0 +1,3 @@
+[submodule "tests/smap_io-test-data"]
+	path = tests/smap_io-test-data
+	url = https://www.geo.tuwien.ac.at/downloads/gittd/smap_io-test-data.git/

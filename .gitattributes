@@ -1,1 +1,1 @@
-*.h5 filter=lfs diff=lfs merge=lfs -text
+tests/test_data/SPL3SMP filter=lfs diff=lfs merge=lfs -text

@@ -5,6 +5,10 @@ Changelog
 Version 0.X
 ===========
 
+- Add kwargs to time series reader
+- Add option for download checking
+- Add CRID reading
+- Name PM variables *_pm in time series
 - Add download module
 - Add SMAP L3 v4 and v5 support
 - Update readme

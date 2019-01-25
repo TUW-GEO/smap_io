@@ -39,9 +39,8 @@ from ease_grid import EASE2_grid
 from smap_io.interface import SPL3SMP_Ds
 
 
-def reshuffle(input_root, outputpath,
-              startdate, enddate,
-              parameters, overpass=None, imgbuffer=50):
+def reshuffle(input_root, outputpath, startdate, enddate,
+              parameters, overpass=None, crid=None, imgbuffer=50):
     """
     Reshuffle method applied to ERA-Interim data.
 
@@ -60,12 +59,15 @@ def reshuffle(input_root, outputpath,
     overpass : str
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         If the version data does not contain multiple overpasses, this must be None
+    crid : int, optional (default: None)
+        Search for files with this Composite Release ID for reshuffling only.
+        See also https://nsidc.org/data/smap/data_versions#CRID
     imgbuffer: int, optional
         How many images to read at once before writing time series.
     """
 
     input_dataset = SPL3SMP_Ds(input_root, parameter=parameters,
-                               overpass=overpass, flatten=True)
+                               overpass=overpass, crid=crid, flatten=True)
     global_attr = {'product': 'SPL3SMP'}
 
     if overpass:
@@ -121,15 +123,22 @@ def parse_args(args):
                         help=("Select 'AM' for the descending overpass or 'PM' "
                               "for the ascending one. Only necessary if dataset "
                               "contains multiple overpasses"))
+    parser.add_argument("--crid", type=int, default=None,
+                        help='Composite Release ID. Reshuffle only files with this ID.'
+                             'See also https://nsidc.org/data/smap/data_versions#CRID '
+                             'If not specified, all files in the passed directory are used.')
     parser.add_argument("--imgbuffer", type=int, default=50,
                         help=("How many images to read at once. Bigger numbers make the "
                               "conversion faster but consume more memory."))
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
-    print("Converting data from {} to {} into folder {}.".format(args.start.isoformat(),
-                                                                 args.end.isoformat(),
-                                                                 args.timeseries_root))
+    print("Converting images in {ds_root} (ID:{crid}) from {start} to {end} to TS into folder {ts_root}."
+          .format(ds_root=args.dataset_root,
+                  crid=args.crid if args.crid is not None else 'not specified',
+                  start=args.start.isoformat(),
+                  end=args.end.isoformat(),
+                  ts_root=args.timeseries_root))
     return args
 
 
@@ -141,7 +150,8 @@ def main(args):
               args.start,
               args.end,
               args.parameters,
-              args.overpass,
+              overpass=args.overpass,
+              crid=args.crid,
               imgbuffer=args.imgbuffer)
 
 

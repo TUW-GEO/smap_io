@@ -6,6 +6,6 @@ h5py
 pygeogrids
 ease_grid
 repurpose
-pynetcf
-trollsift
+trollsift==0.2.1
 datedown
+pynetcf==0.1.18
