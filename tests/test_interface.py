@@ -32,7 +32,7 @@ from datetime import datetime
 
 def test_SPL3SMP_Img():
     fname = os.path.join(os.path.dirname(__file__),
-                         'test_data', 'SPL3SMP', '2015.04.01',
+                         'smap_io-test-data', 'SPL3SMP', '2015.04.01',
                          'SMAP_L3_SM_P_20150401_R13080_001.h5')
     ds = SPL3SMP_Img(fname)
     image = ds.read()
@@ -52,7 +52,7 @@ def test_SPL3SMP_Img():
 
 def test_SPL3SMP_Img_flatten():
     fname = os.path.join(os.path.dirname(__file__),
-                         'test_data', 'SPL3SMP', '2015.04.01',
+                         'smap_io-test-data', 'SPL3SMP', '2015.04.01',
                          'SMAP_L3_SM_P_20150401_R13080_001.h5')
     ds = SPL3SMP_Img(fname, flatten=True)
     image = ds.read()
@@ -72,8 +72,8 @@ def test_SPL3SMP_Img_flatten():
 
 def test_SPL3SMP_Ds_read_by_date():
     root_path = os.path.join(os.path.dirname(__file__),
-                             'test_data', 'SPL3SMP')
-    ds = SPL3SMP_Ds(root_path)
+                             'smap_io-test-data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path, crid=13080)
     image = ds.read(datetime(2015, 4, 1))
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
@@ -83,8 +83,8 @@ def test_SPL3SMP_Ds_read_by_date():
 
 def test_SPL3SMP_Ds_read_by_date_flatten():
     root_path = os.path.join(os.path.dirname(__file__),
-                             'test_data', 'SPL3SMP')
-    ds = SPL3SMP_Ds(root_path, flatten=True)
+                             'smap_io-test-data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path, crid=13080, flatten=True)
     image = ds.read(datetime(2015, 4, 1))
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406 * 964,)
@@ -94,8 +94,8 @@ def test_SPL3SMP_Ds_read_by_date_flatten():
 
 def test_SPL3SMP_Ds_iterator():
     root_path = os.path.join(os.path.dirname(__file__),
-                             'test_data', 'SPL3SMP')
-    ds = SPL3SMP_Ds(root_path)
+                             'smap_io-test-data', 'SPL3SMP')
+    ds = SPL3SMP_Ds(root_path, crid=13080)
     read_img = 0
     for image in ds.iter_images(datetime(2015, 4, 1),
                                 datetime(2015, 4, 2)):
@@ -106,3 +106,7 @@ def test_SPL3SMP_Ds_iterator():
         read_img = read_img + 1
 
     assert read_img == 2
+
+
+if __name__ == '__main__':
+    test_SPL3SMP_Img()

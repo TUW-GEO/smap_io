@@ -38,16 +38,18 @@ from smap_io.interface import SMAPTs
 def test_reshuffle():
 
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "test_data", "SPL3SMP")
+                          "smap_io-test-data", "SPL3SMP")
     ts_path = tempfile.mkdtemp()
     startdate = "2015-04-01"
     enddate = "2015-04-02"
     parameters = ["soil_moisture", "soil_moisture_error"]
+    crid = ["--crid", "13080"]
 
-    args = [inpath, ts_path, startdate, enddate] + parameters
+    args = [inpath, ts_path, startdate, enddate] + parameters + crid
     main(args)
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
-    ds = SMAPTs(ts_path)
+    ds = SMAPTs(ts_path,  parameters=['soil_moisture','soil_moisture_error'],
+                ioclass_kws={'read_bulk': True, 'read_dates': False})
     ts = ds.read_ts(-2.8, 55.4)
     ds.grid.arrcell[35 * 964 + 474] == 1289
     soil_moisture_values_should = np.array(
