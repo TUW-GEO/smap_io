@@ -1,0 +1,19 @@
+name: smap_io
+channels:
+- conda-forge
+dependencies:
+- numpy
+- h5py
+- netcdf4==1.2.2
+- pyproj
+- pandas
+- pyresample
+- pip:
+  - datedown
+  - ease-grid
+  - pygeobase
+  - pygeogrids
+  - pytesmo
+  - repurpose
+  - trollsift==0.2.1
+  - pynetcf==0.1.18
