@@ -5,6 +5,7 @@ Changelog
 Version 0.X
 ===========
 
+- Update documentation
 - Add kwargs to time series reader
 - Add option for download checking
 - Add CRID reading
