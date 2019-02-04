@@ -2,7 +2,11 @@
 Changelog
 =========
 
-Version 0.X
+Version 0.x
+===========
+-
+
+Version 0.3
 ===========
 
 - Update documentation
