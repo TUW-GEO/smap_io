@@ -50,7 +50,7 @@ def test_reshuffle():
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
     ds = SMAPTs(ts_path,  parameters=['soil_moisture','soil_moisture_error'],
                 ioclass_kws={'read_bulk': True, 'read_dates': False})
-    ts = ds.read_ts(-2.8, 55.4)
+    ts = ds.read(-2.8, 55.4)
     ds.grid.arrcell[35 * 964 + 474] == 1289
     soil_moisture_values_should = np.array(
         [0.267108, 0.275263], dtype=np.float32)

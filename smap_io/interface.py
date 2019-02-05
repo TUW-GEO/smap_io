@@ -248,8 +248,3 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
         grid = ncdf.load_grid(grid_path)
         super(SMAPTs, self).__init__(ts_path, grid, **kwargs)
-
-
-
-
-
