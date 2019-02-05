@@ -100,11 +100,17 @@ def mkdate(datestring):
 
 def parse_args(args):
     """
-    Parse command line parameters for conversion from image to timeseries
-
-    :param args: command line parameters as list of strings
-    :return: command line parameters as :obj:`argparse.Namespace`
+    Parse command line parameters for conversion from image to time series.
+    Parameters
+    ----------
+    args: list
+        command line parameters as list of strings
+    Returns
+    ----------
+    args : argparse.Namespace
+        Parsed command line parameters
     """
+
     parser = argparse.ArgumentParser(
         description="Convert SMAP data into time series format.")
     parser.add_argument("dataset_root",
@@ -117,7 +123,7 @@ def parse_args(args):
                         help=("Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."))
     parser.add_argument("parameters", metavar="parameters",
                         nargs="+",
-                        help=("Parameters to convert as strings "
+                        help=("Parameters to convert as strings as in the downloaded file"
                               "e.g. soil_moisture soil_moisture_error"))
     parser.add_argument("--overpass", type=str, default=None,
                         help=("Select 'AM' for the descending overpass or 'PM' "
@@ -126,7 +132,7 @@ def parse_args(args):
     parser.add_argument("--crid", type=int, default=None,
                         help='Composite Release ID. Reshuffle only files with this ID.'
                              'See also https://nsidc.org/data/smap/data_versions#CRID '
-                             'If not specified, all files in the passed directory are used.')
+                             'If not specified, all files in the dataset_root directory are used.')
     parser.add_argument("--imgbuffer", type=int, default=50,
                         help=("How many images to read at once. Bigger numbers make the "
                               "conversion faster but consume more memory."))

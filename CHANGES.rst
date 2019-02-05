@@ -9,6 +9,7 @@ Version 0.x
 Version 0.3
 ===========
 
+- Add test for download
 - Update documentation
 - Add kwargs to time series reader
 - Add option for download checking
