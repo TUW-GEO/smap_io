@@ -25,6 +25,5 @@ class DownloadTest(unittest.TestCase):
                 '--username', os.environ['SMAPUSERNAME'], '--password',  os.environ['SMAPPWD']]
 
         main(args)
-        time.sleep(50) #wait until download is finished, better solution?
         assert(os.listdir(dl_path) == ['2018.12.01'])
         assert(os.listdir(os.path.join(dl_path, '2018.12.01')) == ['SMAP_L3_SM_P_20181201_R16020_002.h5'])
