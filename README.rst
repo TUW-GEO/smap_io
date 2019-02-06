@@ -8,8 +8,8 @@ smap_io
 .. image:: https://coveralls.io/repos/github/TUW-GEO/smap_io/badge.svg?branch=master
    :target: https://coveralls.io/github/TUW-GEO/smap_io?branch=master
 
-.. image:: https://badge.fury.io/py/smap_io.svg
-    :target: http://badge.fury.io/py/smap_io
+.. image:: https://badge.fury.io/py/smap-io.svg
+    :target: http://badge.fury.io/py/smap-io
 
 .. image:: https://readthedocs.org/projects/smap_io/badge/?version=latest
    :target: http://smap_io.readthedocs.org/
