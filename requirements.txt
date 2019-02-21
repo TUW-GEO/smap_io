@@ -9,3 +9,4 @@ repurpose
 trollsift==0.2.1
 datedown
 pynetcf==0.1.18
+more_itertools
