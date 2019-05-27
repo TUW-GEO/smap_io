@@ -4,7 +4,7 @@ channels:
 dependencies:
 - numpy
 - h5py
-- netcdf4==1.2.2
+- netcdf4
 - pyproj
 - pandas
 - pyresample
