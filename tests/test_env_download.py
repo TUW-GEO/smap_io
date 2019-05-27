@@ -9,7 +9,6 @@ import tempfile
 
 from smap_io.download import main
 import unittest
-import time
 
 class DownloadTest(unittest.TestCase):
 

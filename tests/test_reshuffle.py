@@ -30,6 +30,7 @@ import glob
 import tempfile
 import numpy as np
 import numpy.testing as nptest
+import shutil
 
 from smap_io.reshuffle import main
 from smap_io.interface import SMAPTs
@@ -42,19 +43,24 @@ def test_reshuffle():
     ts_path = tempfile.mkdtemp()
     startdate = "2015-04-01"
     enddate = "2015-04-02"
-    parameters = ["soil_moisture", "soil_moisture_error"]
+    parameters = ["soil_moisture"] # , "soil_moisture_error"]
     crid = ["--crid", "13080"]
 
     args = [inpath, ts_path, startdate, enddate] + parameters + crid
-    main(args)
-    assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
-    ds = SMAPTs(ts_path,  parameters=['soil_moisture','soil_moisture_error'],
-                ioclass_kws={'read_bulk': True, 'read_dates': False})
-    ts = ds.read(-2.8, 55.4)
-    ds.grid.arrcell[35 * 964 + 474] == 1289
-    soil_moisture_values_should = np.array(
-        [0.267108, 0.275263], dtype=np.float32)
+    try:
+        main(args)
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
+        ds = SMAPTs(ts_path,  parameters=parameters,
+                    ioclass_kws={'read_bulk': True, 'read_dates': False})
+        ts = ds.read(-2.8, 55.4)
+        ds.grid.arrcell[35 * 964 + 474] == 1289
+        soil_moisture_values_should = np.array(
+            [0.267108, 0.275263], dtype=np.float32)
 
-    nptest.assert_almost_equal(ts['soil_moisture'].values,
-                               soil_moisture_values_should,
-                               decimal=6)
+        nptest.assert_almost_equal(ts['soil_moisture'].values,
+                                   soil_moisture_values_should,
+                                   decimal=6)
+        shutil.rmtree(ts_path)
+    except Exception as e:
+        shutil.rmtree(ts_path)
+        raise e
