@@ -11,8 +11,8 @@ smap_io
 .. image:: https://badge.fury.io/py/smap-io.svg
     :target: http://badge.fury.io/py/smap-io
 
-.. image:: https://readthedocs.org/projects/smap_io/badge/?version=latest
-   :target: http://smap_io.readthedocs.org/
+.. image:: https://readthedocs.org/projects/smap-io/badge/?version=latest
+    :target: https://smap-io.readthedocs.io/en/latest/?badge=latest
 
 SMAP (Soil Moisture Active Passive) data readers.
 
