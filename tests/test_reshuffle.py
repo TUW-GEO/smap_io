@@ -43,7 +43,7 @@ def test_reshuffle():
     ts_path = tempfile.mkdtemp()
     startdate = "2015-04-01"
     enddate = "2015-04-02"
-    parameters = ["soil_moisture"] # , "soil_moisture_error"]
+    parameters = ["soil_moisture", "soil_moisture_error"]
     kwargs = ["--crid", "13080", "--overpass", 'None', "--var_overpass_str", 'False']
 
     args = [inpath, ts_path, startdate, enddate] + parameters + kwargs
@@ -65,6 +65,3 @@ def test_reshuffle():
     except Exception as e:
         shutil.rmtree(ts_path)
         raise e
-
-if __name__ == '__main__':
-    test_reshuffle()
