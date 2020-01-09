@@ -42,7 +42,7 @@ commands:
 
 .. code-block:: shell
 
-  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4==1.2.2 pyresample scipy pandas matplotlib
+  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4 pyresample pandas
   source activate smap_io
   pip install smap_io
 
@@ -54,7 +54,7 @@ developers of the package.
 
   git clone https://github.com/TUW-GEO/smap_io.git --recursive
   cd smap_io
-  conda create -n smap_io python=2.7 # or any supported python version
+  conda create -n smap_io python=3.6 # or any supported python version
   source activate smap_io
   conda update -f environment.yml
   python setup.py develop

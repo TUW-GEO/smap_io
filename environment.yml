@@ -8,6 +8,7 @@ dependencies:
 - pyproj
 - pandas
 - pyresample
+- pip
 - pip:
   - datedown
   - ease-grid
@@ -16,5 +17,6 @@ dependencies:
   - pytesmo
   - repurpose
   - trollsift==0.2.1
-  - pynetcf==0.1.18
+  - pynetcf
   - more_itertools
+  - parse

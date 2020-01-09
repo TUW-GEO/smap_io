@@ -31,8 +31,9 @@ from pynetcf.time_series import GriddedNcOrthoMultiTs
 import pygeogrids.netcdf as ncdf
 import h5py
 import numpy as np
-
+from parse import *
 from datetime import timedelta
+import warnings
 
 
 class SPL3SMP_Img(ImageBase):
@@ -48,46 +49,69 @@ class SPL3SMP_Img(ImageBase):
     parameter : string or list, optional
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
-    overpass : str, optional
+    overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
-        Dataset version must support multiple overpasses, else choose None
+        If there is only one overpass in the file (old SMAP versions) pass None.
         Passing PM will result in reading variables called *name*_pm
         Passing AM will result in reading variables called *name*
+    var_overpass_str : bool, optional (default: True)
+        Append overpass indicator to the loaded variables. E.g. Soil Moisture
+        will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
+        in all cases if this is set to False.
     flatten: boolean, optional
         If true the read data will be returned as 1D arrays.
     """
 
     def __init__(self, filename, mode='r', parameter='soil_moisture',
-                 overpass=None, flatten=False):
+                 overpass='AM', var_overpass_str=True, flatten=False):
         super(SPL3SMP_Img, self).__init__(filename, mode=mode)
 
         if type(parameter) != list:
             parameter = [parameter]
         self.overpass = overpass
+        self.overpass_templ = 'Soil_Moisture_Retrieval_Data{orbit}'
+        self.var_overpass_str = var_overpass_str
         self.parameters = parameter
         self.flatten = flatten
 
+    def assert_overpass(self, ds):
+        if self.overpass is None: # find overpasses in file
+            overpasses = []
+            for k in list(ds.keys()):
+                p = parse(self.overpass_templ, k)
+                if p is not None and ('orbit' in p.named.keys()):
+                    overpasses.append(p['orbit'][1:]) # omit leading _
+
+            if len(overpasses) > 1:
+                raise IOError('Multiple overpasses ({}) found in file, please specify which'
+                              'overpass to load.'.format(self.overpass))
+        else:
+            assert self.overpass.upper() in ['AM', 'PM']
+
     def read(self, timestamp=None):
 
-        return_img = {}
-        metadata_img = {}
+        return_data = {}
+        return_meta = {}
 
         try:
-            ds = h5py.File(self.filename)
+            ds = h5py.File(self.filename, mode='r')
         except IOError as e:
             print(e)
             print(" ".join([self.filename, "can not be opened"]))
             raise e
 
-        overpass_str = '_' + self.overpass.upper() if self.overpass else ''
+        self.assert_overpass(ds)
 
-        sm_field = 'Soil_Moisture_Retrieval_Data%s' % overpass_str
+        overpass = self.overpass
+
+        overpass_str = '_' + overpass.upper() if overpass else ''
+        sm_field = self.overpass_templ.format(orbit=overpass_str)
 
         if sm_field not in ds.keys():
-            raise NameError(sm_field, 'Field does not exists. Try deactivating overpass')
+            raise NameError(sm_field, 'Field does not exists. Try deactivating overpass option.')
 
-        if self.overpass:
-            overpass_str = '_' + self.overpass.lower() if self.overpass.upper() == 'PM' else ''
+        if overpass:
+            overpass_str = '_' + overpass.lower() if overpass.upper() == 'PM' else ''
         else:
             overpass_str = ''
 
@@ -103,6 +127,8 @@ class SPL3SMP_Img(ImageBase):
                 fill_value = param.attrs['_FillValue']
                 valid_min = param.attrs['valid_min']
                 valid_max = param.attrs['valid_max']
+                data = np.where(np.logical_or(data < valid_min, data > valid_max),
+                                fill_value, data)
             except KeyError:
                 pass
 
@@ -110,23 +136,27 @@ class SPL3SMP_Img(ImageBase):
             for key in param.attrs:
                 metadata[key] = param.attrs[key]
 
-            data = np.where(np.logical_or(data < valid_min, data > valid_max),
-                            fill_value,
-                            data)
-            return_img[parameter + overpass_str] = data
-            metadata_img[parameter + overpass_str] = metadata
+            if self.var_overpass_str:
+                if overpass is None:
+                    warnings.warn('Renaming variable only possible if overpass in given.'
+                                  ' Use names as in file.')
+                    ret_param_name = parameter
+                else:
+                    ret_param_name = parameter + '_' + overpass.lower()
+            else:
+                ret_param_name = parameter
+
+            return_data[ret_param_name] = data
+            return_meta[ret_param_name] = metadata
 
         if self.flatten:
             longitude = longitude.flatten()
             latitude = latitude.flatten()
-            for param in self.parameters:
-                return_img[param + overpass_str] = return_img[param + overpass_str].flatten()
+            for param in return_data.keys():
+                return_data[param] = return_data[param].flatten()
 
-        return Image(longitude,
-                     latitude,
-                     return_img,
-                     metadata_img,
-                     timestamp)
+        ds.close()
+        return Image(longitude, latitude, return_data, return_meta, timestamp)
 
     def write(self, data):
         raise NotImplementedError()
@@ -152,6 +182,10 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
     overpass : str, optional
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         Dataset version must support multiple overpasses, else choose None
+    var_overpass_str : bool, optional (default: True)
+        Append overpass indicator to the loaded variables. E.g. Soil Moisture
+        will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
+        in all cases if this is set to False.
     subpath_templ : list, optional
         If the data is store in subpaths based on the date of the dataset then this list
         can be used to specify the paths. Every list element specifies one path level.
@@ -162,11 +196,12 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
         If true the read data will be returned as 1D arrays.
     """
 
-    def __init__(self, data_path, parameter='soil_moisture', overpass=None,
-                 subpath_templ=['%Y.%m.%d'], crid=None, flatten=False):
+    def __init__(self, data_path, parameter='soil_moisture', overpass='AM',
+                 var_overpass_str=True, subpath_templ=['%Y.%m.%d'], crid=None, flatten=False):
 
         ioclass_kws = {'parameter': parameter,
                        'overpass': overpass,
+                       'var_overpass_str': var_overpass_str,
                        'flatten': flatten}
         if crid is None:
             filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
@@ -210,7 +245,7 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
 class SMAPTs(GriddedNcOrthoMultiTs):
 
     def __init__(self, ts_path, grid_path=None, **kwargs):
-        '''
+        """
         Class for reading SMAP time series after reshuffling.
 
         Parameters
@@ -241,7 +276,7 @@ class SMAPTs(GriddedNcOrthoMultiTs):
                         if false dates will not be read automatically but only on
                         specific request useable for bulk reading because currently
                         the netCDF num2date routine is very slow for big datasets.
-        '''
+        """
 
         if grid_path is None:
             grid_path = os.path.join(ts_path, "grid.nc")

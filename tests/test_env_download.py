@@ -20,9 +20,9 @@ class DownloadTest(unittest.TestCase):
         dl_path = tempfile.mkdtemp()
         startdate = enddate = "2018-12-01"
 
-        args = [dl_path, '-s', startdate, '-e', enddate, '--product', 'SPL3SMP.005',
+        args = [dl_path, '-s', startdate, '-e', enddate, '--product', 'SPL3SMP.006',
                 '--username', os.environ['SMAPUSERNAME'], '--password',  os.environ['SMAPPWD']]
 
         main(args)
         assert(os.listdir(dl_path) == ['2018.12.01'])
-        assert(os.listdir(os.path.join(dl_path, '2018.12.01')) == ['SMAP_L3_SM_P_20181201_R16020_002.h5'])
+        assert(os.listdir(os.path.join(dl_path, '2018.12.01')) == ['SMAP_L3_SM_P_20181201_R16510_001.h5'])

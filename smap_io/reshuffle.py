@@ -40,7 +40,8 @@ from smap_io.interface import SPL3SMP_Ds
 
 
 def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters, overpass=None, crid=None, imgbuffer=50):
+              parameters, overpass='AM', var_overpass_str=False,
+              crid=None, imgbuffer=50):
     """
     Reshuffle method applied to ERA-Interim data.
 
@@ -56,18 +57,23 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         End date.
     parameters: list
         parameters to read and convert
-    overpass : str
+    overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         If the version data does not contain multiple overpasses, this must be None
+    var_overpass_str : bool, optional (default: True)
+        Append overpass indicator to the loaded variables. E.g. Soil Moisture
+        will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
+        in all cases if this is set to False.
     crid : int, optional (default: None)
         Search for files with this Composite Release ID for reshuffling only.
         See also https://nsidc.org/data/smap/data_versions#CRID
-    imgbuffer: int, optional
+    imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
 
     input_dataset = SPL3SMP_Ds(input_root, parameter=parameters,
-                               overpass=overpass, crid=crid, flatten=True)
+                               overpass=overpass, var_overpass_str=False,
+                               crid=crid, flatten=True)
     global_attr = {'product': 'SPL3SMP'}
 
     if overpass:
@@ -75,7 +81,6 @@ def reshuffle(input_root, outputpath, startdate, enddate,
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
-
 
     # get time series attributes from first day of data.
     data = input_dataset.read(startdate)
@@ -125,17 +130,21 @@ def parse_args(args):
                         nargs="+",
                         help=("Parameters to convert as strings as in the downloaded file"
                               "e.g. soil_moisture soil_moisture_error"))
-    parser.add_argument("--overpass", type=str, default=None,
-                        help=("Select 'AM' for the descending overpass or 'PM' "
+    parser.add_argument("--overpass", type=str, default='AM',
+                        help=("Select 'AM' for the descending overpass or 'AM' "
                               "for the ascending one. Only necessary if dataset "
-                              "contains multiple overpasses"))
+                              "contains multiple overpasses. Default: 'AM'"))
+    parser.add_argument("--var_overpass_str", type=bool, default=False,
+                        help=("Append overpass indicator to the reshuffled variables. "
+                              "E.g. Soil Moisture will be called soil_moisture_pm and soil_moisture_am instead "
+                              "of soil_moisture. Default: False"))
     parser.add_argument("--crid", type=int, default=None,
                         help='Composite Release ID. Reshuffle only files with this ID.'
                              'See also https://nsidc.org/data/smap/data_versions#CRID '
-                             'If not specified, all files in the dataset_root directory are used.')
-    parser.add_argument("--imgbuffer", type=int, default=50,
+                             'If not specified, all files in the dataset_root directory are used. Default: None')
+    parser.add_argument("--imgbuffer", type=int, default=100,
                         help=("How many images to read at once. Bigger numbers make the "
-                              "conversion faster but consume more memory."))
+                              "conversion faster but consume more memory. Default: 100."))
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
@@ -156,7 +165,8 @@ def main(args):
               args.start,
               args.end,
               args.parameters,
-              overpass=args.overpass,
+              overpass=None if args.overpass in ['False', 'false', 'none', 'None'] else args.overpass,
+              var_overpass_str=args.var_overpass_str,
               crid=args.crid,
               imgbuffer=args.imgbuffer)
 
