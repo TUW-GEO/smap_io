@@ -6,6 +6,12 @@ Version 0.x
 ===========
 -
 
+Version 0.4
+===========
+- Add support for SMAP L3 v6 data,
+- Remove download support for v4 and v5 (decommissioned), reading still possible.
+- Add option to rename variables with orbit indicator during reading.
+
 Version 0.3
 ===========
 

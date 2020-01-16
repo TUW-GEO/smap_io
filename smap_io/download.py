@@ -304,8 +304,7 @@ def get_first_formatted_dir_in_dir(folder, fmt):
 
 
 def get_start_date(product):
-    dt_dict = {'SPL3SMP.004': datetime(2015, 3, 31, 0),
-               'SPL3SMP.005': datetime(2015, 3, 31, 0)}
+    dt_dict = {'SPL3SMP.006': datetime(2015, 3, 31, 0)}
     return dt_dict[product]
 
 
@@ -322,15 +321,15 @@ def parse_args(args):
                         help='Root of local filesystem where the data is stored.')
     parser.add_argument("-s", "--start", type=mkdate,
                         help=("Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-                              "If not given then the target folder is scanned for a start date."
-                              "If no data is found there then the first available date of the product is used."))
+                              " If not given then the target folder is scanned for a start date."
+                              " If no data is found there then the first available date of the product is used."))
     parser.add_argument("-e", "--end", type=mkdate,
                         help=("Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-                              "If not given then the current date is used."))
-    parser.add_argument("--product", choices=["SPL3SMP.004", "SPL3SMP.005"],
-                        default="SPL3SMP.005",
-                        help='SMAP product to download. (default: SPL3SMP.005).'
-                             'See also https://nsidc.org/data/smap/data_versions#L3 ')
+                              " If not given then the current date is used."))
+    parser.add_argument("--product", choices=["SPL3SMP.006"],
+                        default="SPL3SMP.006",
+                        help='SMAP product to download. (default: SPL3SMP.006).'
+                             ' See also https://nsidc.org/data/smap/data_versions#L3 ')
     parser.add_argument("--username",
                         help='Username to use for download.')
     parser.add_argument("--password",
@@ -350,12 +349,9 @@ def parse_args(args):
         if args.end is None:
             args.end = datetime.now()
 
-    prod_urls = {'SPL3SMP.004':
-                 {'root': 'https://n5eil01u.ecs.nsidc.org',
-                  'dirs': ['SMAP', 'SPL3SMP.004', '%Y.%m.%d']},
-                 'SPL3SMP.005':
-                 {'root': 'https://n5eil01u.ecs.nsidc.org',
-                  'dirs': ['SMAP', 'SPL3SMP.005', '%Y.%m.%d']},
+    prod_urls = {'SPL3SMP.006':
+                     {'root': 'https://n5eil01u.ecs.nsidc.org',
+                      'dirs': ['SMAP', 'SPL3SMP.006', '%Y.%m.%d']},
                  }
 
     args.urlroot = prod_urls[args.product]['root']
@@ -374,7 +370,6 @@ def main(args):
 
     args = parse_args(args)
 
-    #args.urlsubdirs = args.urlsubdirs[:2]
     dts = list(daily(args.start, args.end))
     i = 0
     while(len(dts) != 0) and i < 3: # after 3 reties abort
@@ -405,14 +400,4 @@ def main(args):
 
 def run():
     main(sys.argv[1:])
-
-
-if __name__ == '__main__':
-    cmd = ['path_to_images',
-           '-s', '2016-09-27', '-e', '2016-09-27',
-           '--product', 'SPL3SMP.005',
-           '--username', '******',
-           '--password', '****',
-           '--n_proc', '1']
-    main(cmd)
 

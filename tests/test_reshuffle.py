@@ -43,10 +43,10 @@ def test_reshuffle():
     ts_path = tempfile.mkdtemp()
     startdate = "2015-04-01"
     enddate = "2015-04-02"
-    parameters = ["soil_moisture"] # , "soil_moisture_error"]
-    crid = ["--crid", "13080"]
+    parameters = ["soil_moisture", "soil_moisture_error"]
+    kwargs = ["--crid", "13080", "--overpass", 'None', "--var_overpass_str", 'False']
 
-    args = [inpath, ts_path, startdate, enddate] + parameters + crid
+    args = [inpath, ts_path, startdate, enddate] + parameters + kwargs
     try:
         main(args)
         assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
@@ -60,6 +60,7 @@ def test_reshuffle():
         nptest.assert_almost_equal(ts['soil_moisture'].values,
                                    soil_moisture_values_should,
                                    decimal=6)
+        ds.close()
         shutil.rmtree(ts_path)
     except Exception as e:
         shutil.rmtree(ts_path)

@@ -42,19 +42,19 @@ commands:
 
 .. code-block:: shell
 
-  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4==1.2.2 pyresample scipy pandas matplotlib
+  conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4 pyresample pandas
   source activate smap_io
   pip install smap_io
 
 You can also install all needed (conda and pip) dependencies at once using the
-following commands after cloning this repository.  This is recommended for
+following commands after cloning this repository. This is recommended for
 developers of the package.
 
 .. code-block:: shell
 
   git clone https://github.com/TUW-GEO/smap_io.git --recursive
   cd smap_io
-  conda create -n smap_io python=2.7 # or any supported python version
+  conda create -n smap_io python=3.6 # or any supported python version
   source activate smap_io
   conda update -f environment.yml
   python setup.py develop
@@ -63,6 +63,9 @@ Supported Products
 ==================
 
 - `SPL3SMP <http://nsidc.org/data/SPL3SMP>`_: SMAP L3 Radiometer Global Daily 36 km EASE-Grid Soil Moisture
+
+Additional products will we added when need arises, feel free to open an issue to
+add a new data product or even better a pull request.
 
 Contribute
 ==========
