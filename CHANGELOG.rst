@@ -2,9 +2,13 @@
 Changelog
 =========
 
-Version 0.x
-===========
+Unreleased
+==========
 -
+
+Version 0.5
+===========
+- Witch to new pyscaffold structure
 
 Version 0.4
 ===========
