@@ -6,12 +6,9 @@ Unreleased
 ==========
 -
 
-Version 0.5
-===========
-- Witch to new pyscaffold structure
-
 Version 0.4
 ===========
+- Switch to new pyscaffold structure
 - Add support for SMAP L3 v6 data,
 - Remove download support for v4 and v5 (decommissioned), reading still possible.
 - Add option to rename variables with orbit indicator during reading.

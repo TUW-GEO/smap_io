@@ -55,6 +55,6 @@ deploy:
     tags: true
 after_deploy:
   # as in docs
-  - conda create -q -n smap_io -c conda-forge numpy h5py pyproj netcdf4 pyresample pandas
-  - source activate smap_io
+  - conda create -q -n smap_io_deploy -c conda-forge numpy h5py pyproj netcdf4 pyresample pandas
+  - source activate smap_io_deploy
   - pip install smap_io
