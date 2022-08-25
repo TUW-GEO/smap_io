@@ -37,11 +37,11 @@ from pygeogrids import BasicGrid
 from repurpose.img2ts import Img2Ts
 from ease_grid import EASE2_grid
 from smap_io.interface import SPL3SMP_Ds
+from smap_io.grid import EASE36CellGrid
 
 
-def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters, overpass='AM', var_overpass_str=False,
-              crid=None, imgbuffer=50):
+def reshuffle(input_root, outputpath, startdate, enddate, parameters,
+              imgbuffer=200, **ds_kwargs):
     """
     Reshuffle method applied to ERA-Interim data.
 
@@ -67,17 +67,19 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     crid : int, optional (default: None)
         Search for files with this Composite Release ID for reshuffling only.
         See also https://nsidc.org/data/smap/data_versions#CRID
+    grid: pygeogrids.Cellgrid, optional (default: None)
+        Subgrid to limit reading to.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
+    if 'grid' not in ds_kwargs.keys():
+        ds_kwargs['grid'] = EASE36CellGrid()
+    ds_kwargs['parameter'] = parameters
+    ds_kwargs['flatten'] = True
 
-    input_dataset = SPL3SMP_Ds(input_root, parameter=parameters,
-                               overpass=overpass, var_overpass_str=False,
-                               crid=crid, flatten=True)
+    input_dataset = SPL3SMP_Ds(input_root, **ds_kwargs)
     global_attr = {'product': 'SPL3SMP'}
 
-    if overpass:
-        global_attr['overpass'] = overpass
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
@@ -85,12 +87,13 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     # get time series attributes from first day of data.
     data = input_dataset.read(startdate)
     ts_attributes = data.metadata
-    ease36 = EASE2_grid(36000)
-    lons, lats = np.meshgrid(ease36.londim, ease36.latdim)
-    grid = BasicGrid(lons.flatten(), lats.flatten())
+
+    # global_attr['overpass'] = getattr(input_dataset.fid, 'overpass')
+
+    input_grid = ds_kwargs['grid'].cut() if isinstance(ds_kwargs['grid'], EASE36CellGrid) else ds_kwargs['grid']
 
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
-                        startdate=startdate, enddate=enddate, input_grid=grid,
+                        startdate=startdate, enddate=enddate, input_grid=input_grid,
                         imgbuffer=imgbuffer, cellsize_lat=5.0, cellsize_lon=5.0,
                         global_attr=global_attr, ts_attributes=ts_attributes)
     reshuffler.calc()
@@ -142,6 +145,11 @@ def parse_args(args):
                         help='Composite Release ID. Reshuffle only files with this ID.'
                              'See also https://nsidc.org/data/smap/data_versions#CRID '
                              'If not specified, all files in the dataset_root directory are used. Default: None')
+    parser.add_argument("--bbox", type=float, default=None, nargs=4,
+                        help=("min_lon min_lat max_lon max_lat. "
+                              "Bounding Box (lower left and upper right corner) "
+                              "of subset area of global images to reshuffle (WGS84). "
+                              "Default: None"))
     parser.add_argument("--imgbuffer", type=int, default=100,
                         help=("How many images to read at once. Bigger numbers make the "
                               "conversion faster but consume more memory. Default: 100."))
@@ -160,11 +168,17 @@ def parse_args(args):
 def main(args):
     args = parse_args(args)
 
+    if 'bbox' in args:
+        grid = EASE36CellGrid(bbox=args.bbox)
+    else:
+        grid = None
+
     reshuffle(args.dataset_root,
               args.timeseries_root,
               args.start,
               args.end,
               args.parameters,
+              grid=grid,
               overpass=None if args.overpass in ['False', 'false', 'none', 'None'] else args.overpass,
               var_overpass_str=args.var_overpass_str,
               crid=args.crid,
@@ -175,4 +189,16 @@ def run():
     main(sys.argv[1:])
 
 if __name__ == '__main__':
-    run()
+    #run()
+    from pygeogrids.netcdf import load_grid
+    for overpass in ["AM", 'PM']:
+        ds_root = "/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/"
+        ts_root = f"/home/wpreimes/shares/radar/Projects/QA4SM_HR/07_data/SMAP_SPL3SMP_land_data/{overpass}"
+        os.makedirs(ts_root, exist_ok=True)
+        start = datetime(2015,3,31)
+        end = datetime(2020,5,27)
+        grid = load_grid("/home/wpreimes/shares/home/code/smap_io/src/_local_scripts/ease36_landgrid.nc")
+        grid = EASE36CellGrid().subgrid_from_gpis(grid.activegpis)
+        params = ["freeze_thaw_fraction", "retrieval_qual_flag", "soil_moisture", "soil_moisture_error",
+                  "surface_flag", "surface_temperature", "vegetation_opacity", "vegetation_water_content"]
+        reshuffle(ds_root, ts_root, start, end, params, overpass=overpass, grid=grid)

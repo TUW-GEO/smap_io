@@ -40,20 +40,22 @@ def test_reshuffle():
 
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "smap_io-test-data", "SPL3SMP")
-    ts_path = tempfile.mkdtemp()
     startdate = "2015-04-01"
     enddate = "2015-04-02"
     parameters = ["soil_moisture", "soil_moisture_error"]
-    kwargs = ["--crid", "13080", "--overpass", 'None', "--var_overpass_str", 'False']
+    bbox = ['-5', '52', '0', '57']
+    kwargs = ["--crid", "13080", "--overpass", 'None', "--var_overpass_str", 'False'] + ['--bbox', *bbox]
 
-    args = [inpath, ts_path, startdate, enddate] + parameters + kwargs
-    try:
+    with tempfile.TemporaryDirectory() as ts_path:
+        args = [inpath, ts_path, startdate, enddate] + parameters + kwargs
+
         main(args)
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2449
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
         ds = SMAPTs(ts_path,  parameters=parameters,
                     ioclass_kws={'read_bulk': True, 'read_dates': False})
-        ts = ds.read(-2.8, 55.4)
-        ds.grid.arrcell[35 * 964 + 474] == 1289
+        loc = (-2.8, 55.4)
+        ts = ds.read(*loc)
+        assert ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0]) == 1289
         soil_moisture_values_should = np.array(
             [0.267108, 0.275263], dtype=np.float32)
 
@@ -61,7 +63,7 @@ def test_reshuffle():
                                    soil_moisture_values_should,
                                    decimal=6)
         ds.close()
-        shutil.rmtree(ts_path)
-    except Exception as e:
-        shutil.rmtree(ts_path)
-        raise e
+
+
+if __name__ == '__main__':
+    test_reshuffle()

@@ -34,7 +34,7 @@ import numpy as np
 from parse import *
 from datetime import timedelta
 import warnings
-
+from smap_io.grid import EASE36CellGrid
 
 class SPL3SMP_Img(ImageBase):
     """
@@ -42,13 +42,12 @@ class SPL3SMP_Img(ImageBase):
 
     Parameters
     ----------
-    filename: string
-        filename of the SMAP h5 file
-    mode: string, optional
+    filename: str
+        filename of the SMAP h5 file to read.
+    mode: str, optional (default: 'r')
         mode of opening the file, only 'r' is implemented at the moment
-    parameter : string or list, optional
+    parameter : str or list, optional (default : 'soil_moisture')
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
-        Default : 'soil_moisture'
     overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         If there is only one overpass in the file (old SMAP versions) pass None.
@@ -58,16 +57,30 @@ class SPL3SMP_Img(ImageBase):
         Append overpass indicator to the loaded variables. E.g. Soil Moisture
         will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
         in all cases if this is set to False.
-    flatten: boolean, optional
+    grid: pygeogrids.CellGrid, optional (default: None)
+        A (sub)grid of points to read. e.g. to read data for land points only
+        for a specific bounding box. Must be a subgrid of an EASE25 Grid.
+        If None is passed, all point are read.
+    flatten: bool, optional (default: False)
         If true the read data will be returned as 1D arrays.
     """
 
-    def __init__(self, filename, mode='r', parameter='soil_moisture',
-                 overpass='AM', var_overpass_str=True, flatten=False):
-        super(SPL3SMP_Img, self).__init__(filename, mode=mode)
+    def __init__(self,
+                 filename,
+                 mode='r',
+                 parameter='soil_moisture',
+                 overpass='AM',
+                 var_overpass_str=True,
+                 grid=None,
+                 flatten=False):
+
+        self.grid = grid if grid is not None else EASE36CellGrid()
+
+        super().__init__(filename, mode=mode)
 
         if type(parameter) != list:
             parameter = [parameter]
+
         self.overpass = overpass
         self.overpass_templ = 'Soil_Moisture_Retrieval_Data{orbit}'
         self.var_overpass_str = var_overpass_str
@@ -88,7 +101,16 @@ class SPL3SMP_Img(ImageBase):
         else:
             assert self.overpass.upper() in ['AM', 'PM']
 
-    def read(self, timestamp=None):
+    def read(self, timestamp=None) -> Image:
+        """
+        Read a single h5 image file to pygeobase Image.
+
+        Parameters
+        ----------
+        timestamp: datetime, optional (default: False)
+            Time stamp to read. If None is passed, the Image will
+            not have a time stamp assigned.
+        """
 
         return_data = {}
         return_meta = {}
@@ -121,7 +143,10 @@ class SPL3SMP_Img(ImageBase):
         for parameter in self.parameters:
             metadata = {}
             param = ds[sm_field][parameter + overpass_str]
-            data = param[:]
+            data = np.flipud(param[:]).flatten()
+
+            if self.grid is not None:
+                data = data[self.grid.activegpis]
             # mask according to valid_min, valid_max and _FillValue
             try:
                 fill_value = param.attrs['_FillValue']
@@ -149,14 +174,23 @@ class SPL3SMP_Img(ImageBase):
             return_data[ret_param_name] = data
             return_meta[ret_param_name] = metadata
 
-        if self.flatten:
-            longitude = longitude.flatten()
-            latitude = latitude.flatten()
-            for param in return_data.keys():
-                return_data[param] = return_data[param].flatten()
 
-        ds.close()
-        return Image(longitude, latitude, return_data, return_meta, timestamp)
+        if self.flatten:
+            return Image(self.grid.activearrlon, self.grid.activearrlat,
+                         return_data, return_meta, timestamp)
+        else:
+
+            if len(self.grid.subset_shape) != 2:
+                raise ValueError("Grid is 1-dimensional, to read a 2d image,"
+                                 " a 2d grid - e.g. from bbox of the global grid -"
+                                 "is required.")
+
+            return Image(np.flipud(self.grid.activearrlon.reshape(self.grid.subset_shape)),
+                         np.flipud(self.grid.activearrlat.reshape(self.grid.subset_shape)),
+                         {param: np.flipud(data.reshape(self.grid.subset_shape)) for param, data in return_data.items()},
+                         return_meta,
+                         timestamp)
+
 
     def write(self, data):
         raise NotImplementedError()
@@ -174,46 +208,49 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
 
     Parameters
     ----------
-    data_path: string
+    data_path: str
         root path of the SMAP data files
-    parameter : string or list, optional
+    parameter : str or list, optional (default: 'soil_moisture')
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
         Default : 'soil_moisture'
-    overpass : str, optional
+    overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
         Dataset version must support multiple overpasses, else choose None
     var_overpass_str : bool, optional (default: True)
         Append overpass indicator to the loaded variables. E.g. Soil Moisture
         will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
         in all cases if this is set to False.
-    subpath_templ : list, optional
+    subpath_templ : list, optional (default: ('%Y.%m.%d',))
         If the data is store in subpaths based on the date of the dataset then this list
         can be used to specify the paths. Every list element specifies one path level.
     crid : int, optional (default: None)
         Only read files with this specific Composite Release ID.
         See also https://nsidc.org/data/smap/data_versions#CRID
-    flatten: boolean, optional
+    grid: pygeogrids.CellGrid, optional (default: None)
+        A (sub)grid of points to read. e.g. to read data for land points only
+        for a specific bounding box. Must be a subgrid of an EASE25 Grid.
+        If None is passed, all point are read.
+    flatten: bool, optional (default: False)
         If true the read data will be returned as 1D arrays.
     """
 
-    def __init__(self, data_path, parameter='soil_moisture', overpass='AM',
-                 var_overpass_str=True, subpath_templ=['%Y.%m.%d'], crid=None, flatten=False):
+    def __init__(self,
+                 data_path,
+                 subpath_templ=('%Y.%m.%d',),
+                 crid=None,
+                 **ioclass_kws):
 
-        ioclass_kws = {'parameter': parameter,
-                       'overpass': overpass,
-                       'var_overpass_str': var_overpass_str,
-                       'flatten': flatten}
         if crid is None:
-            filename_templ = "SMAP_L3_SM_P_{datetime}_*.h5"
+            filename_templ = f"SMAP_L3_SM_P_{'{datetime}'}_*.h5"
         else:
-            filename_templ = "SMAP_L3_SM_P_{datetime}_R%i*.h5" % crid
+            filename_templ = f"SMAP_L3_SM_P_{'{datetime}'}_R{crid}*.h5"
 
-        super(SPL3SMP_Ds, self).__init__(data_path, SPL3SMP_Img,
-                                         fname_templ=filename_templ,
-                                         datetime_format="%Y%m%d",
-                                         subpath_templ=subpath_templ,
-                                         exact_templ=False,
-                                         ioclass_kws=ioclass_kws)
+        super().__init__(data_path, SPL3SMP_Img,
+                         fname_templ=filename_templ,
+                         datetime_format="%Y%m%d",
+                         subpath_templ=subpath_templ,
+                         exact_templ=False,
+                         ioclass_kws=ioclass_kws)
 
     def tstamps_for_daterange(self, start_date, end_date):
         """
@@ -283,3 +320,13 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
         grid = ncdf.load_grid(grid_path)
         super(SMAPTs, self).__init__(ts_path, grid, **kwargs)
+
+
+if __name__ == '__main__':
+    from datetime import datetime
+    from io_utils.grid.grid_shp_adapter import GridShpAdapter
+    path = "/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/"
+    grid = EASE36CellGrid(bbox=None)
+    adapter = GridShpAdapter(grid)
+    ds = SPL3SMP_Ds(path, grid=grid, flatten=False)
+    img  = ds.read(datetime(2016,3,23))
