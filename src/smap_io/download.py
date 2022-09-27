@@ -20,6 +20,7 @@ import tempfile
 
 from multiprocessing import Pool
 
+
 def dates_empty_folders(img_dir, crid=None):
     """
     Checks the download directory for date with empty folders.
@@ -39,18 +40,22 @@ def dates_empty_folders(img_dir, crid=None):
 
     missing = []
     for dir, subdirs, files in os.walk(img_dir):
-        if len(subdirs)!=0: continue
+        if len(subdirs) != 0:
+            continue
         if crid:
             cont = [str(crid) in afile for afile in files]
             if not any(cont): missing.append(dir)
         else:
-            cont = True if len(files)>0 else False
+            cont = True if len(files) > 0 else False
             if not cont: missing.append(dir)
 
-    miss_dates = [datetime.strptime(os.path.basename(os.path.normpath(miss_path)), '%Y.%m.%d')
-                  for miss_path in missing]
+    miss_dates = [
+        datetime.strptime(os.path.basename(os.path.normpath(miss_path)),
+                          '%Y.%m.%d')
+        for miss_path in missing]
 
     return sorted(miss_dates)
+
 
 def wget_download(url, target, username=None, password=None, cookie_file=None,
                   recursive=False, filetypes=None, robots_off=False):
@@ -126,7 +131,8 @@ def check_dl(url_target):
     return os.path.isdir(url_target) and not len(os.listdir(url_target)) == 0
 
 
-def wget_map_download(url_target, username=None, password=None, cookie_file=None,
+def wget_map_download(url_target, username=None, password=None,
+                      cookie_file=None,
                       recursive=False, filetypes=None, robots_off=False):
     """
     copied from datedown and modified.
@@ -154,15 +160,15 @@ def wget_map_download(url_target, username=None, password=None, cookie_file=None
     """
 
     # repeats the download once in cases where no files are downloaded.
-    i =0
+    i = 0
     while (not check_dl(url_target[1])) and i < 5:
         wget_download(url_target[0], url_target[1],
-                     username=username,
-                     password=password,
-                     cookie_file=cookie_file,
-                     recursive=recursive,
-                     filetypes=filetypes,
-                     robots_off=robots_off)
+                      username=username,
+                      password=password,
+                      cookie_file=cookie_file,
+                      recursive=recursive,
+                      filetypes=filetypes,
+                      robots_off=robots_off)
         i += 1
 
 
@@ -193,19 +199,42 @@ def download(urls, targets, num_proc=1, username=None, password=None,
     robots_off : bool
         Don't apply server robots rules.
     """
-    p = Pool(num_proc)
-    # partial function for Pool.map
-    cookie_file = tempfile.NamedTemporaryFile()
-    dlfunc = partial(wget_map_download,
-                     username=username,
-                     password=password,
-                     cookie_file=cookie_file.name,
-                     recursive=recursive,
-                     filetypes=filetypes,
-                     robots_off=robots_off)
 
-    p.map_async(dlfunc, zip(urls, targets)).get(9999999)
-    cookie_file.close()
+    def update(r):
+        return
+
+    def error(e):
+        return
+
+    cf = tempfile.NamedTemporaryFile()
+    cookie_file = cf.name
+    cf.close()
+
+    args = []
+    for u, t in zip(urls, targets):
+        args.append([
+            [u, t], username, password, cookie_file, recursive, filetypes,
+            robots_off
+        ])
+
+    if num_proc == 1:
+        for arg in args:
+            try:
+                r = wget_map_download(*arg)
+                update(r)
+            except Exception as e:
+                error(e)
+    else:
+        with Pool(num_proc) as pool:
+            for arg in args:
+                pool.apply_async(
+                    wget_map_download,
+                    arg,
+                    callback=update,
+                    error_callback=error,
+                )
+            pool.close()
+            pool.join()
 
 
 def folder_get_first_last(
@@ -320,16 +349,22 @@ def parse_args(args):
     parser.add_argument("localroot",
                         help='Root of local filesystem where the data is stored.')
     parser.add_argument("-s", "--start", type=mkdate,
-                        help=("Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-                              " If not given then the target folder is scanned for a start date."
-                              " If no data is found there then the first available date of the product is used."))
+                        help=(
+                            "Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
+                            " If not given then the target folder is scanned for a start date."
+                            " If no data is found there then the first available date of the product is used."))
     parser.add_argument("-e", "--end", type=mkdate,
-                        help=("Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-                              " If not given then the current date is used."))
-    parser.add_argument("--product", choices=["SPL3SMP"],
+                        help=(
+                            "Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
+                            " If not given then the current date is used."))
+    parser.add_argument("--product", type=str,
                         default="SPL3SMP.008",
                         help='SMAP product to download. (default: SPL3SMP.008).'
                              ' See also https://n5eil01u.ecs.nsidc.org/SMAP/ ')
+    parser.add_argument("--filetypes", nargs="*", default=["h5", "nc"],
+                        help="File types (extensions) to download. Files with"
+                             "other extensions are ignored. "
+                             "Default is equivalent to --filetypes h5 nc")
     parser.add_argument("--username",
                         help='Username to use for download.')
     parser.add_argument("--password",
@@ -353,21 +388,19 @@ def parse_args(args):
     args.urlsubdirs = ['SMAP', args.product, '%Y.%m.%d']
     args.localsubdirs = ['%Y.%m.%d']
 
-    print("Downloading SMAP {product} data from {start} to {end} into folder {localroot}."
-          .format(product=args.product,
-                  start=args.start.isoformat(),
-                  end=args.end.isoformat(),
-                  localroot=args.localroot))
+    print(
+        f"Downloading SMAP {args.product} data from {args.start.isoformat()} "
+        f"to {args.end.isoformat()} into folder {args.localroot}.")
+
     return args
 
 
 def main(args):
-
     args = parse_args(args)
 
     dts = list(daily(args.start, args.end))
     i = 0
-    while(len(dts) != 0) and i < 3:  # after 3 reties abort
+    while (len(dts) != 0) and i < 3:  # after 3 reties abort
         url_create_fn = partial(create_dt_url, root=args.urlroot,
                                 fname='', subdirs=args.urlsubdirs)
         fname_create_fn = partial(create_dt_fpath, root=args.localroot,
@@ -377,14 +410,14 @@ def main(args):
                             username=args.username,
                             password=args.password,
                             recursive=True,
-                            filetypes=['h5'],
+                            filetypes=args.filetypes,
                             robots_off=True)
 
         download_by_dt(dts, url_create_fn,
                        fname_create_fn, down_func,
                        recursive=True)
 
-        dts = dates_empty_folders(args.localroot) # missing dates
+        dts = dates_empty_folders(args.localroot)  # missing dates
         i += 1
 
     if len(dts) != 0:
@@ -393,6 +426,13 @@ def main(args):
         print('No data has been downloaded for the following dates:')
         for date in dts: print(str(date.date()))
 
+
 def run():
     main(sys.argv[1:])
 
+
+if __name__ == '__main__':
+    main([r'U:\delete_me' if 'win' in sys.platform else '/tmp/l2', '-s',
+          '2020-01-01', '-e', '2020-01-03', '--username', 'wpreimes',
+          '--password', 'ThisTestPWD1', '--n_proc', '2', '--prod', 'SPL2SMAP_S.003',
+          '--filetypes', 'h5', 'qa', 'xml'])

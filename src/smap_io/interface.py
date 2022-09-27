@@ -36,6 +36,7 @@ from datetime import timedelta
 import warnings
 from smap_io.grid import EASE36CellGrid
 
+
 class SPL3SMP_Img(ImageBase):
     """
     Class for reading one image of SMAP Level 3 version 5 Passive Soil Moisture
@@ -50,7 +51,7 @@ class SPL3SMP_Img(ImageBase):
         one or list of parameters found at http://nsidc.org/data/smap_io/spl3smp/data-fields
     overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
-        If there is only one overpass in the file (old SMAP versions) pass None.
+        If there is only one overpass in the file (old SPL3 versions) pass None.
         Passing PM will result in reading variables called *name*_pm
         Passing AM will result in reading variables called *name*
     var_overpass_str : bool, optional (default: True)
@@ -62,7 +63,10 @@ class SPL3SMP_Img(ImageBase):
         for a specific bounding box. Must be a subgrid of an EASE25 Grid.
         If None is passed, all point are read.
     flatten: bool, optional (default: False)
-        If true the read data will be returned as 1D arrays.
+        If true the read data will be returned as 1D arrays. Where the first
+        value refers to the bottom-left most point in the grid!
+        If not flattened, a 2d array where the min Lat is in the bottom row
+        is returned!
     """
 
     def __init__(self,
@@ -72,34 +76,22 @@ class SPL3SMP_Img(ImageBase):
                  overpass='AM',
                  var_overpass_str=True,
                  grid=None,
-                 flatten=False):
-
-        self.grid = grid if grid is not None else EASE36CellGrid()
+                 flatten=False
+        ):
 
         super().__init__(filename, mode=mode)
+
+        self.grid = EASE36CellGrid() if grid is None else grid
 
         if type(parameter) != list:
             parameter = [parameter]
 
-        self.overpass = overpass
+        self.overpass = overpass.upper() if overpass is not None else None
         self.overpass_templ = 'Soil_Moisture_Retrieval_Data{orbit}'
         self.var_overpass_str = var_overpass_str
         self.parameters = parameter
         self.flatten = flatten
 
-    def assert_overpass(self, ds):
-        if self.overpass is None: # find overpasses in file
-            overpasses = []
-            for k in list(ds.keys()):
-                p = parse(self.overpass_templ, k)
-                if p is not None and ('orbit' in p.named.keys()):
-                    overpasses.append(p['orbit'][1:]) # omit leading _
-
-            if len(overpasses) > 1:
-                raise IOError('Multiple overpasses ({}) found in file, please specify which'
-                              'overpass to load.'.format(self.overpass))
-        else:
-            assert self.overpass.upper() in ['AM', 'PM']
 
     def read(self, timestamp=None) -> Image:
         """
@@ -122,7 +114,22 @@ class SPL3SMP_Img(ImageBase):
             print(" ".join([self.filename, "can not be opened"]))
             raise e
 
-        self.assert_overpass(ds)
+        if self.overpass is None:
+            overpasses = []
+            for k in list(ds.keys()):
+                p = parse(self.overpass_templ, k)
+                if p is not None and ('orbit' in p.named.keys()):
+                    overpasses.append(p['orbit'][1:])  # omit leading _
+
+            if len(overpasses) > 1:
+                raise IOError(
+                    'Multiple overpasses found in file, please specify '
+                    f'one overpass to load: {overpasses}'
+                )
+            else:
+                self.overpass = overpasses[0].upper()
+        else:
+            assert self.overpass in ['AM', 'PM']
 
         overpass = self.overpass
 
@@ -130,15 +137,13 @@ class SPL3SMP_Img(ImageBase):
         sm_field = self.overpass_templ.format(orbit=overpass_str)
 
         if sm_field not in ds.keys():
-            raise NameError(sm_field, 'Field does not exists. Try deactivating overpass option.')
+            raise NameError(
+                sm_field, 'Field does not exists. Try deactivating overpass option.')
 
         if overpass:
-            overpass_str = '_' + overpass.lower() if overpass.upper() == 'PM' else ''
+            overpass_str = '_pm' if overpass == 'PM' else ''
         else:
             overpass_str = ''
-
-        latitude = ds[sm_field]['latitude%s' % overpass_str][:]
-        longitude = ds[sm_field]['longitude%s' % overpass_str][:]
 
         for parameter in self.parameters:
             metadata = {}
@@ -152,8 +157,9 @@ class SPL3SMP_Img(ImageBase):
                 fill_value = param.attrs['_FillValue']
                 valid_min = param.attrs['valid_min']
                 valid_max = param.attrs['valid_max']
-                data = np.where(np.logical_or(data < valid_min, data > valid_max),
-                                fill_value, data)
+                data = np.where(
+                    np.logical_or(data < valid_min, data > valid_max),
+                    fill_value, data)
             except KeyError:
                 pass
 
@@ -161,19 +167,19 @@ class SPL3SMP_Img(ImageBase):
             for key in param.attrs:
                 metadata[key] = param.attrs[key]
 
+            ret_param_name = parameter
+
             if self.var_overpass_str:
                 if overpass is None:
-                    warnings.warn('Renaming variable only possible if overpass in given.'
-                                  ' Use names as in file.')
+                    warnings.warn(
+                        'Renaming variable only possible if overpass in given.'
+                        ' Use names as in file.')
                     ret_param_name = parameter
-                else:
-                    ret_param_name = parameter + '_' + overpass.lower()
-            else:
-                ret_param_name = parameter
+                elif not parameter.endswith(f'_{overpass.lower()}'):
+                    ret_param_name = parameter + f'_{overpass.lower()}'
 
             return_data[ret_param_name] = data
             return_meta[ret_param_name] = metadata
-
 
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,
@@ -185,12 +191,24 @@ class SPL3SMP_Img(ImageBase):
                                  " a 2d grid - e.g. from bbox of the global grid -"
                                  "is required.")
 
-            return Image(np.flipud(self.grid.activearrlon.reshape(self.grid.subset_shape)),
-                         np.flipud(self.grid.activearrlat.reshape(self.grid.subset_shape)),
-                         {param: np.flipud(data.reshape(self.grid.subset_shape)) for param, data in return_data.items()},
-                         return_meta,
-                         timestamp)
+            if (np.prod(self.grid.subset_shape) != len(
+                    self.grid.activearrlon)) or \
+                    (np.prod(self.grid.subset_shape) != len(
+                        self.grid.activearrlat)):
+                raise ValueError(f"The grid shape {self.grid.subset_shape} "
+                                 f"does not match with the shape of the loaded "
+                                 f"data. If you have passed a subgrid with gaps"
+                                 f" (e.g. landpoints only) you have to set"
+                                 f" `flatten=True`")
 
+            lons = np.flipud(
+                self.grid.activearrlon.reshape(self.grid.subset_shape))
+            lats = np.flipud(
+                self.grid.activearrlat.reshape(self.grid.subset_shape))
+            data = {param: np.flipud(data.reshape(self.grid.subset_shape))
+                    for param, data in return_data.items()}
+
+            return Image(lons, lats, data, return_meta, timestamp)
 
     def write(self, data):
         raise NotImplementedError()
@@ -215,7 +233,7 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
         Default : 'soil_moisture'
     overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
-        Dataset version must support multiple overpasses, else choose None
+        Dataset version must support multiple overpasses.
     var_overpass_str : bool, optional (default: True)
         Append overpass indicator to the loaded variables. E.g. Soil Moisture
         will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
@@ -238,12 +256,25 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
                  data_path,
                  subpath_templ=('%Y.%m.%d',),
                  crid=None,
-                 **ioclass_kws):
+                 parameter='soil_moisture',
+                 overpass='AM',
+                 var_overpass_str=True,
+                 grid=None,
+                 flatten=False
+                 ):
 
         if crid is None:
             filename_templ = f"SMAP_L3_SM_P_{'{datetime}'}_*.h5"
         else:
             filename_templ = f"SMAP_L3_SM_P_{'{datetime}'}_R{crid}*.h5"
+
+        ioclass_kws = {
+            'parameter': parameter,
+            'overpass': overpass,
+            'var_overpass_str': var_overpass_str,
+            'grid': grid,
+            'flatten': flatten
+        }
 
         super().__init__(data_path, SPL3SMP_Img,
                          fname_templ=filename_templ,
@@ -276,7 +307,6 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
             timestamps.append(daily_date)
 
         return timestamps
-
 
 
 class SMAPTs(GriddedNcOrthoMultiTs):
@@ -323,10 +353,9 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
 
 if __name__ == '__main__':
-    from datetime import datetime
-    from io_utils.grid.grid_shp_adapter import GridShpAdapter
     path = "/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/"
-    grid = EASE36CellGrid(bbox=None)
-    adapter = GridShpAdapter(grid)
-    ds = SPL3SMP_Ds(path, grid=grid, flatten=False)
-    img  = ds.read(datetime(2016,3,23))
+    grid = EASE36CellGrid(only_land=True)
+    img = SPL3SMP_Img(
+        filename="/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/2020.05.15/SMAP_L3_SM_P_20200515_R16515_001.h5",
+        grid=grid, flatten=True)
+    dat = img.read()

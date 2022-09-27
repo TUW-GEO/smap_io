@@ -70,7 +70,11 @@ class EASE36CellGrid(CellGrid):
 
 
     def cut(self) -> CellGrid:
+        dy = len(np.unique(self.activearrlat))
+        dx = len(np.unique(self.activearrlon))
         # create a new grid from the active subset
+        shape = self.subset_shape if np.prod(self.subset_shape) == len(
+            self.activegpis) else None
         return BasicGrid(lon=self.activearrlon, lat=self.activearrlat,
                          gpis=self.activegpis, subset=None,
-                         shape=self.subset_shape).to_cell_grid(self.cellsize)
+                         shape=shape).to_cell_grid(self.cellsize)
