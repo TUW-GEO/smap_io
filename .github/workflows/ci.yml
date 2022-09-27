@@ -60,7 +60,7 @@ jobs:
           SMAPPWD: ${{ secrets.SMAPPWD }}
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
         shell: bash -l {0}
-        # On Windows, add GHA installed wget to path so that datedown can use it
+        # On Windows, wget needs to be installed properly first, not tested here
         run: |
           pip install -e .
           if [ ${{ matrix.os }} == "windows-latest" ]

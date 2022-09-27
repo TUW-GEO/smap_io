@@ -2,8 +2,8 @@
 smap_io
 =======
 
-.. image:: https://travis-ci.org/TUW-GEO/smap_io.svg?branch=master
-    :target: https://travis-ci.org/TUW-GEO/smap_io
+.. image:: https://github.com/TUW-GEO/smap_io/workflows/Automated%20Tests/badge.svg?branch=master
+   :target: https://github.com/TUW-GEO/smap_io/actions
 
 .. image:: https://coveralls.io/repos/github/TUW-GEO/smap_io/badge.svg?branch=master
    :target: https://coveralls.io/github/TUW-GEO/smap_io?branch=master
