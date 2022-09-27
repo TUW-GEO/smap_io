@@ -20,4 +20,7 @@ dependencies:
   - pynetcf
   - more_itertools
   - parse
+  - pytest
+  - pytest-cov
+  - coverage
   - yapf
