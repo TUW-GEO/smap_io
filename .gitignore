@@ -41,4 +41,5 @@ cover/*
 MANIFEST
 
 #others
+wget-log
 */_local_scripts/*

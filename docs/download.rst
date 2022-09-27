@@ -2,8 +2,7 @@ Downloading products
 ====================
 
 SMAP products can be downloaded via HTTPS. You have to register an account
-with NASA's Earthdata portal. Instructions can be found `here
-<https://wiki.earthdata.nasa.gov/display/EL/How+To+Register+With+Earthdata+Login>`_.
+with NASA's Earthdata portal: https://urs.earthdata.nasa.gov/
 
 After that you can use the command line program ``smap_download`` and your username
 and password to download data between 2 dates.

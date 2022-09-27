@@ -20,3 +20,4 @@ dependencies:
   - pynetcf
   - more_itertools
   - parse
+  - yapf
