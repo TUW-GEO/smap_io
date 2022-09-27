@@ -61,6 +61,10 @@ jobs:
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
         shell: bash -l {0}
         run: |
+          if [ ${{ matrix.os }} == "windows-latest" ]
+          then
+            echo "C:\msys64\usr\bin" >> $GITHUB_PATH
+          fi
           pip install -e .
           pytest --cache-clear
       - name: Upload Coverage
