@@ -11,12 +11,21 @@ from smap_io.download import main
 import unittest
 import glob
 
+# These variables must be set in the workflow environment!
+env_username = "SMAPUSERNAME"
+env_pwd = "SMAPPWD"
+
+runtest = False
+if (env_username in os.environ) and (env_pwd in os.environ):
+    if os.environ[env_username] and os.environ[env_pwd]:
+        runtest = True
+
 class DownloadTest(unittest.TestCase):
 
     # these tests only run if a username and pw are set in the environment
     # variables. To manually set them: `export USERNAME="my_username"` etc.
     @unittest.skipIf(
-        ("SMAPUSERNAME" not in os.environ) or ("SMAPPWD" not in os.environ),
+        not runtest,
         'Username and/or PW not found'
     )
     def test_full_download(self):
@@ -26,8 +35,8 @@ class DownloadTest(unittest.TestCase):
 
         args = [
             dl_path, '-s', startdate, '-e', enddate,
-            '--username', os.environ['SMAPUSERNAME'],
-            '--password',  os.environ['SMAPPWD'],
+            '--username', os.environ[env_username],
+            '--password',  os.environ[env_pwd],
             '--n_proc', '1'
         ]
 
