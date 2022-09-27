@@ -11,7 +11,8 @@ from smap_io.download import main
 import unittest
 import glob
 
-# These variables must be set in the workflow environment!
+# These variables must be set in the workflow environment, and are taken
+# by GitHub from the repository secrets.
 env_username = "SMAPUSERNAME"
 env_pwd = "SMAPPWD"
 

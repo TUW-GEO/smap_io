@@ -6,6 +6,14 @@ Unreleased
 ==========
 -
 
+Version 0.5
+===========
+- Add support to download all smap products and test actual download
+- Allow reshuffling land points only (SPL3SMP)
+- Allow reshuffling points in bounding box only (SPL3SMP)
+- Testdata module is now using GitLFS and hosted at TUW
+- Meta package follows pyscaffold 4 standards, yapf formatting added
+
 Version 0.4
 ===========
 - Switch to new pyscaffold structure
