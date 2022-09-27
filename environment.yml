@@ -10,7 +10,7 @@ dependencies:
 - pyresample
 - pip
 - pip:
-  - datedown
+  - git+https://github.com/sebhahn/datedown@da7f25d206593a2b4c53d74e331565332227eebb
   - ease-grid
   - pygeobase
   - pygeogrids

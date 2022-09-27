@@ -14,11 +14,11 @@ from datedown.dates import daily
 from datedown.urlcreator import create_dt_url
 from datedown.fname_creator import create_dt_fpath
 from datedown.interface import download_by_dt
-
 import subprocess
 import tempfile
 
 from multiprocessing import Pool
+
 
 
 def dates_empty_folders(img_dir, crid=None):
