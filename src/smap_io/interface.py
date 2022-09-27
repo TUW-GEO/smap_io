@@ -19,7 +19,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 '''
 Module to read single SMAP L3 images and image stacks
 '''
@@ -76,8 +75,7 @@ class SPL3SMP_Img(ImageBase):
                  overpass='AM',
                  var_overpass_str=True,
                  grid=None,
-                 flatten=False
-        ):
+                 flatten=False):
 
         super().__init__(filename, mode=mode)
 
@@ -91,7 +89,6 @@ class SPL3SMP_Img(ImageBase):
         self.var_overpass_str = var_overpass_str
         self.parameters = parameter
         self.flatten = flatten
-
 
     def read(self, timestamp=None) -> Image:
         """
@@ -124,8 +121,7 @@ class SPL3SMP_Img(ImageBase):
             if len(overpasses) > 1:
                 raise IOError(
                     'Multiple overpasses found in file, please specify '
-                    f'one overpass to load: {overpasses}'
-                )
+                    f'one overpass to load: {overpasses}')
             else:
                 self.overpass = overpasses[0].upper()
         else:
@@ -138,7 +134,8 @@ class SPL3SMP_Img(ImageBase):
 
         if sm_field not in ds.keys():
             raise NameError(
-                sm_field, 'Field does not exists. Try deactivating overpass option.')
+                sm_field,
+                'Field does not exists. Try deactivating overpass option.')
 
         if overpass:
             overpass_str = '_pm' if overpass == 'PM' else ''
@@ -187,26 +184,30 @@ class SPL3SMP_Img(ImageBase):
         else:
 
             if len(self.grid.subset_shape) != 2:
-                raise ValueError("Grid is 1-dimensional, to read a 2d image,"
-                                 " a 2d grid - e.g. from bbox of the global grid -"
-                                 "is required.")
+                raise ValueError(
+                    "Grid is 1-dimensional, to read a 2d image,"
+                    " a 2d grid - e.g. from bbox of the global grid -"
+                    "is required.")
 
             if (np.prod(self.grid.subset_shape) != len(
                     self.grid.activearrlon)) or \
                     (np.prod(self.grid.subset_shape) != len(
                         self.grid.activearrlat)):
-                raise ValueError(f"The grid shape {self.grid.subset_shape} "
-                                 f"does not match with the shape of the loaded "
-                                 f"data. If you have passed a subgrid with gaps"
-                                 f" (e.g. landpoints only) you have to set"
-                                 f" `flatten=True`")
+                raise ValueError(
+                    f"The grid shape {self.grid.subset_shape} "
+                    f"does not match with the shape of the loaded "
+                    f"data. If you have passed a subgrid with gaps"
+                    f" (e.g. landpoints only) you have to set"
+                    f" `flatten=True`")
 
             lons = np.flipud(
                 self.grid.activearrlon.reshape(self.grid.subset_shape))
             lats = np.flipud(
                 self.grid.activearrlat.reshape(self.grid.subset_shape))
-            data = {param: np.flipud(data.reshape(self.grid.subset_shape))
-                    for param, data in return_data.items()}
+            data = {
+                param: np.flipud(data.reshape(self.grid.subset_shape))
+                for param, data in return_data.items()
+            }
 
             return Image(lons, lats, data, return_meta, timestamp)
 
@@ -260,8 +261,7 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
                  overpass='AM',
                  var_overpass_str=True,
                  grid=None,
-                 flatten=False
-                 ):
+                 flatten=False):
 
         if crid is None:
             filename_templ = f"SMAP_L3_SM_P_{'{datetime}'}_*.h5"
@@ -276,12 +276,14 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
             'flatten': flatten
         }
 
-        super().__init__(data_path, SPL3SMP_Img,
-                         fname_templ=filename_templ,
-                         datetime_format="%Y%m%d",
-                         subpath_templ=subpath_templ,
-                         exact_templ=False,
-                         ioclass_kws=ioclass_kws)
+        super().__init__(
+            data_path,
+            SPL3SMP_Img,
+            fname_templ=filename_templ,
+            datetime_format="%Y%m%d",
+            subpath_templ=subpath_templ,
+            exact_templ=False,
+            ioclass_kws=ioclass_kws)
 
     def tstamps_for_daterange(self, start_date, end_date):
         """
@@ -357,5 +359,6 @@ if __name__ == '__main__':
     grid = EASE36CellGrid(only_land=True)
     img = SPL3SMP_Img(
         filename="/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/2020.05.15/SMAP_L3_SM_P_20200515_R16515_001.h5",
-        grid=grid, flatten=True)
+        grid=grid,
+        flatten=True)
     dat = img.read()

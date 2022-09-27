@@ -20,7 +20,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 '''
 Module for a command line interface to convert the SMAP data into a
 time series format using the repurpose package
@@ -40,8 +39,13 @@ from smap_io.interface import SPL3SMP_Ds
 from smap_io.grid import EASE36CellGrid
 
 
-def reshuffle(input_root, outputpath, startdate, enddate, parameters,
-              imgbuffer=200, **ds_kwargs):
+def reshuffle(input_root,
+              outputpath,
+              startdate,
+              enddate,
+              parameters,
+              imgbuffer=200,
+              **ds_kwargs):
     """
     Reshuffle method applied to ERA-Interim data.
 
@@ -90,12 +94,17 @@ def reshuffle(input_root, outputpath, startdate, enddate, parameters,
     input_grid = ds_kwargs['grid'].cut() if \
         isinstance(ds_kwargs['grid'], EASE36CellGrid) else ds_kwargs['grid']
 
-    reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
-                        startdate=startdate, enddate=enddate,
-                        input_grid=input_grid,
-                        imgbuffer=imgbuffer, cellsize_lat=5.0,
-                        cellsize_lon=5.0,
-                        global_attr=None, ts_attributes=data.metadata)
+    reshuffler = Img2Ts(
+        input_dataset=input_dataset,
+        outputpath=outputpath,
+        startdate=startdate,
+        enddate=enddate,
+        input_grid=input_grid,
+        imgbuffer=imgbuffer,
+        cellsize_lat=5.0,
+        cellsize_lon=5.0,
+        global_attr=None,
+        ts_attributes=data.metadata)
     reshuffler.calc()
 
 
@@ -128,82 +137,105 @@ def parse_args(args):
 
     parser = argparse.ArgumentParser(
         description="Convert SMAP data into time series format.")
-    parser.add_argument("dataset_root",
-                        help='Root of local filesystem where the data is stored.')
-    parser.add_argument("timeseries_root",
-                        help='Root of local filesystem where the timeseries should be stored.')
-    parser.add_argument("start", type=mkdate,
-                        help=(
-                            "Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."))
-    parser.add_argument("end", type=mkdate,
-                        help=(
-                            "Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."))
-    parser.add_argument("parameters", metavar="parameters",
-                        nargs="+",
-                        help=(
-                            "Parameters to convert as strings as in the downloaded file"
-                            "e.g. soil_moisture soil_moisture_error"))
-    parser.add_argument("--overpass", choices=['AM', 'PM'], type=str,
-                        default='AM',
-                        help=(
-                            "Select 'PM' for the descending overpass or 'AM' "
-                            "for the ascending one. Only necessary if dataset "
-                            "contains multiple overpasses. Default: 'AM'"))
-    parser.add_argument("--var_overpass_str", type=str2bool, default="False",
-                        help=(
-                            "Append overpass indicator to the reshuffled variables. "
-                            "E.g. Soil Moisture will be called soil_moisture_pm and soil_moisture_am instead "
-                            "of soil_moisture. Default: False"))
-    parser.add_argument("--crid", type=int, default=None,
-                        help='Composite Release ID. Reshuffle only files with this ID.'
-                             'See also https://nsidc.org/data/smap/data_versions#CRID '
-                             'If not specified, all files in the dataset_root directory are used. Default: None')
-    parser.add_argument("--bbox", type=float, default=None, nargs=4,
-                        help=("min_lon min_lat max_lon max_lat. "
-                              "Bounding Box (lower left and upper right corner) "
-                              "of subset area of global images to reshuffle (WGS84). "
-                              "Default: None")),
-    parser.add_argument("--land_points", type=str2bool, default="False",
-                        help=(
-                            "Set True to convert only land points as defined"
-                            " in the GLDAS land mask (faster and less/smaller files)"
-                        )
-                        ),
-    parser.add_argument("--imgbuffer", type=int, default=100,
-                        help=(
-                            "How many images to read at once. Bigger numbers make the "
-                            "conversion faster but consume more memory. Default: 100."))
+    parser.add_argument(
+        "dataset_root",
+        help='Root of local filesystem where the data is stored.')
+    parser.add_argument(
+        "timeseries_root",
+        help='Root of local filesystem where the timeseries should be stored.')
+    parser.add_argument(
+        "start",
+        type=mkdate,
+        help=("Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."))
+    parser.add_argument(
+        "end",
+        type=mkdate,
+        help=("Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."))
+    parser.add_argument(
+        "parameters",
+        metavar="parameters",
+        nargs="+",
+        help=("Parameters to convert as strings as in the downloaded file"
+              "e.g. soil_moisture soil_moisture_error"))
+    parser.add_argument(
+        "--overpass",
+        choices=['AM', 'PM'],
+        type=str,
+        default='AM',
+        help=("Select 'PM' for the descending overpass or 'AM' "
+              "for the ascending one. Only necessary if dataset "
+              "contains multiple overpasses. Default: 'AM'"))
+    parser.add_argument(
+        "--var_overpass_str",
+        type=str2bool,
+        default="False",
+        help=(
+            "Append overpass indicator to the reshuffled variables. "
+            "E.g. Soil Moisture will be called soil_moisture_pm and soil_moisture_am instead "
+            "of soil_moisture. Default: False"))
+    parser.add_argument(
+        "--crid",
+        type=int,
+        default=None,
+        help='Composite Release ID. Reshuffle only files with this ID.'
+        'See also https://nsidc.org/data/smap/data_versions#CRID '
+        'If not specified, all files in the dataset_root directory are used. Default: None'
+    )
+    parser.add_argument(
+        "--bbox",
+        type=float,
+        default=None,
+        nargs=4,
+        help=("min_lon min_lat max_lon max_lat. "
+              "Bounding Box (lower left and upper right corner) "
+              "of subset area of global images to reshuffle (WGS84). "
+              "Default: None")),
+    parser.add_argument(
+        "--land_points",
+        type=str2bool,
+        default="False",
+        help=("Set True to convert only land points as defined"
+              " in the GLDAS land mask (faster and less/smaller files)")),
+    parser.add_argument(
+        "--imgbuffer",
+        type=int,
+        default=100,
+        help=("How many images to read at once. Bigger numbers make the "
+              "conversion faster but consume more memory. Default: 100."))
 
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
     print(
         "Converting images in {ds_root} (ID:{crid}) from {start} to {end} to TS into folder {ts_root}."
-        .format(ds_root=args.dataset_root,
-                crid=args.crid if args.crid is not None else 'not specified',
-                start=args.start.isoformat(),
-                end=args.end.isoformat(),
-                ts_root=args.timeseries_root))
+        .format(
+            ds_root=args.dataset_root,
+            crid=args.crid if args.crid is not None else 'not specified',
+            start=args.start.isoformat(),
+            end=args.end.isoformat(),
+            ts_root=args.timeseries_root))
     return args
 
 
 def main(args):
     args = parse_args(args)
 
-    grid = EASE36CellGrid(bbox=args.bbox if 'bbox' in args else None,
-                          only_land=True if args.land_points else False)
+    grid = EASE36CellGrid(
+        bbox=args.bbox if 'bbox' in args else None,
+        only_land=True if args.land_points else False)
 
-    reshuffle(args.dataset_root,
-              args.timeseries_root,
-              args.start,
-              args.end,
-              args.parameters,
-              grid=grid,
-              overpass=None if args.overpass in ['False', 'false', 'none',
-                                                 'None'] else args.overpass,
-              var_overpass_str=args.var_overpass_str,
-              crid=args.crid,
-              imgbuffer=args.imgbuffer)
+    reshuffle(
+        args.dataset_root,
+        args.timeseries_root,
+        args.start,
+        args.end,
+        args.parameters,
+        grid=grid,
+        overpass=None if args.overpass in ['False', 'false', 'none', 'None']
+        else args.overpass,
+        var_overpass_str=args.var_overpass_str,
+        crid=args.crid,
+        imgbuffer=args.imgbuffer)
 
 
 def run():
@@ -218,9 +250,16 @@ if __name__ == '__main__':
     os.makedirs(ts_root, exist_ok=True)
     start = datetime(2015, 3, 31)
     end = datetime(2015, 4, 10)
-    params = ["freeze_thaw_fraction", "retrieval_qual_flag",
-              "soil_moisture", "soil_moisture_error",
-              "surface_flag", "surface_temperature", "vegetation_opacity",
-              "vegetation_water_content"]
-    reshuffle(ds_root, ts_root, start, end, params, overpass='PM',
-              grid=EASE36CellGrid(only_land=True, bbox=[110, -36, 128, -11]))
+    params = [
+        "freeze_thaw_fraction", "retrieval_qual_flag", "soil_moisture",
+        "soil_moisture_error", "surface_flag", "surface_temperature",
+        "vegetation_opacity", "vegetation_water_content"
+    ]
+    reshuffle(
+        ds_root,
+        ts_root,
+        start,
+        end,
+        params,
+        overpass='PM',
+        grid=EASE36CellGrid(only_land=True, bbox=[110, -36, 128, -11]))

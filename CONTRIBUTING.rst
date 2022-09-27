@@ -171,6 +171,16 @@ Implement your changes
    You can also use |tox|_ to run several other pre-configured tasks in the
    repository. Try ``tox -av`` to see a list of the available checks.
 
+
+Code formatting
+---------------
+To apply pep8 conform styling to any changed files we use yapf.
+The correct settings are already set in setup.cfg.
+Therefore the following command should be enough::
+
+    yapf file.py --in-place
+
+
 Submit your contribution
 ------------------------
 
