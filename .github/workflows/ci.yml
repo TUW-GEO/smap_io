@@ -56,6 +56,9 @@ jobs:
           filename=env_py${{ matrix.python-version }}_${{ matrix.os }}.yml
           conda env export --no-builds | grep -v "prefix" > .artifacts/$filename
       - name: Install package and test
+        env:
+          SMAPPWD: ${{ secrets.SMAPPWD }}
+          SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
         shell: bash -l {0}
         run: |
           pip install -e .

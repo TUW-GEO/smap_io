@@ -13,10 +13,10 @@ import glob
 
 class DownloadTest(unittest.TestCase):
 
-    # these tsts only run of a username and pw are in the environment variables
-    # can be set manually with export USERNAME="my_username" etc.
+    # these tests only run if a username and pw are set in the environment
+    # variables. To manually set them: `export USERNAME="my_username"` etc.
     @unittest.skipIf(
-        "SMAPUSERNAME" not in os.environ or "SMAPPWD" not in os.environ,
+        ("SMAPUSERNAME" not in os.environ) or ("SMAPPWD" not in os.environ),
         'Username and/or PW not found'
     )
     def test_full_download(self):
