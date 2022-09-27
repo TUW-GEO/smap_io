@@ -42,4 +42,4 @@ MANIFEST
 
 #others
 wget-log
-*/_local_scripts/*
+src/smap_io/_local_scripts/*

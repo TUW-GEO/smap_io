@@ -34,6 +34,7 @@ from parse import *
 from datetime import timedelta
 import warnings
 from smap_io.grid import EASE36CellGrid
+from datetime import datetime
 
 
 class SPL3SMP_Img(ImageBase):
@@ -310,6 +311,47 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
 
         return timestamps
 
+    def _build_filename(self, timestamp, custom_templ=None,
+                      str_param=None):
+        """
+        SMAP files can be ambiguous. Multiple (reprocessed) versions
+        of an image can be present. In this case we sort the files
+        and use the last one ovailable.
+        -- Override base function.
+        This function uses _search_files to find the correct
+        filename and checks if the search was unambiguous
+
+        Parameters
+        ----------
+        timestamp: datetime
+            datetime for given filename
+        custom_tmpl : string, optional
+            If given the fname_templ is not used but the custom_templ. This
+            is convenient for some datasets where not all file names follow
+            the same convention and where the read_image function can choose
+            between templates based on some condition.
+        str_param : dict, optional
+            If given then this dict will be applied to the fname_templ using
+            the fname_templ.format(**str_param) notation before the resulting
+            string is put into datetime.strftime.
+
+            example from python documentation
+            >>> coord = {'latitude': '37.24N', 'longitude': '-115.81W'}
+            >>> 'Coordinates: {latitude}, {longitude}'.format(**coord)
+            'Coordinates: 37.24N, -115.81W'
+        """
+        filename = self._search_files(timestamp, custom_templ=custom_templ,
+                                      str_param=str_param)
+        if len(filename) == 0:
+            raise IOError("No file found for {:}".format(timestamp.ctime()))
+        if len(filename) > 1:
+            warnings.warn(
+               f"File search is ambiguous for timestamp {timestamp}: {filename}. "
+               f"Sorting and using last file, with the higher CRID: {sorted(filename)[-1]}"
+            )
+            filename = sorted(filename)
+
+        return filename[-1]
 
 class SMAPTs(GriddedNcOrthoMultiTs):
 
@@ -352,13 +394,3 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
         grid = ncdf.load_grid(grid_path)
         super(SMAPTs, self).__init__(ts_path, grid, **kwargs)
-
-
-if __name__ == '__main__':
-    path = "/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/"
-    grid = EASE36CellGrid(only_land=True)
-    img = SPL3SMP_Img(
-        filename="/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/2020.05.15/SMAP_L3_SM_P_20200515_R16515_001.h5",
-        grid=grid,
-        flatten=True)
-    dat = img.read()

@@ -464,11 +464,5 @@ def main(args):
 def run():
     main(sys.argv[1:])
 
-
 if __name__ == '__main__':
-    main([
-        r'U:\delete_me' if 'win' in sys.platform else '/tmp/l2', '-s',
-        '2020-01-01', '-e', '2020-01-03', '--username', 'wpreimes',
-        '--password', '***', '--n_proc', '2', '--prod', 'SPL2SMAP_S.003',
-        '--filetypes', 'h5', 'qa', 'xml'
-    ])
+    run()

@@ -243,23 +243,5 @@ def run():
 
 
 if __name__ == '__main__':
-    # run()
+    run()
 
-    ds_root = "/home/wpreimes/shares/radar/Datapool/SMAP/01_raw/SPL3SMP_v6/"
-    ts_root = "/tmp/test"
-    os.makedirs(ts_root, exist_ok=True)
-    start = datetime(2015, 3, 31)
-    end = datetime(2015, 4, 10)
-    params = [
-        "freeze_thaw_fraction", "retrieval_qual_flag", "soil_moisture",
-        "soil_moisture_error", "surface_flag", "surface_temperature",
-        "vegetation_opacity", "vegetation_water_content"
-    ]
-    reshuffle(
-        ds_root,
-        ts_root,
-        start,
-        end,
-        params,
-        overpass='PM',
-        grid=EASE36CellGrid(only_land=True, bbox=[110, -36, 128, -11]))
