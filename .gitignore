@@ -41,4 +41,5 @@ cover/*
 MANIFEST
 
 #others
-*/_local_scripts/*
+wget-log
+src/smap_io/_local_scripts/*
