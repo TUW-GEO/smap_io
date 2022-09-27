@@ -60,13 +60,15 @@ jobs:
           SMAPPWD: ${{ secrets.SMAPPWD }}
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
         shell: bash -l {0}
+        # On Windows, add GHA installed wget to path so that datedown can use it
         run: |
+          pip install -e .
           if [ ${{ matrix.os }} == "windows-latest" ]
           then
-            echo "C:\msys64\usr\bin" >> $GITHUB_PATH
+            pytest --cache-clear -m "not wget"
+          else
+            pytest --cache-clear
           fi
-          pip install -e .
-          pytest --cache-clear
       - name: Upload Coverage
         shell: bash -l {0}
         run: |

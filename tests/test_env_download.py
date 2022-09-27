@@ -10,6 +10,7 @@ import tempfile
 from smap_io.download import main
 import unittest
 import glob
+import pytest
 
 # These variables must be set in the workflow environment, and are taken
 # by GitHub from the repository secrets.
@@ -29,6 +30,7 @@ class DownloadTest(unittest.TestCase):
         not runtest,
         'Username and/or PW not found'
     )
+    @pytest.mark.wget
     def test_full_download(self):
 
         dl_path = tempfile.mkdtemp()
