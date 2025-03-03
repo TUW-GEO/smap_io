@@ -24,9 +24,12 @@ Module to read single SMAP L3 images and image stacks
 '''
 
 import os
+
+import pandas as pd
 from pygeobase.io_base import ImageBase, MultiTemporalImageBase
 from pygeobase.object_base import Image
 from pynetcf.time_series import GriddedNcOrthoMultiTs
+from pynetcf.time_series import GriddedNcContiguousRaggedTs
 import pygeogrids.netcdf as ncdf
 import h5py
 import numpy as np
@@ -36,6 +39,43 @@ import warnings
 from smap_io.grid import EASE36CellGrid
 from datetime import datetime
 
+overpass_state = 'AM'
+counter = 0
+
+
+def increment_counter():
+    global counter
+    counter += 1
+
+
+overpass_state_AM = True
+def overpass_change():
+    global overpass_state_AM
+    if overpass_state_AM:
+        overpass_state_AM = False
+    else:
+        overpass_state_AM = True
+current_date = datetime.now()
+date_counter = 0
+
+def reset_date_counter():
+    global date_counter
+    date_counter = 0
+def increment_date_counter():
+    global date_counter
+    date_counter += 1
+def compare_dates(new_date):
+    global date_counter, current_date
+    if current_date != new_date:
+        current_date = new_date
+        date_counter = 0
+    else:
+        current_date = new_date
+
+iteration_counter = 0
+def increment_iteration_counter():
+    global iteration_counter
+    iteration_counter +=1
 
 class SPL3SMP_Img(ImageBase):
     """
@@ -79,7 +119,7 @@ class SPL3SMP_Img(ImageBase):
                  flatten=False):
 
         super().__init__(filename, mode=mode)
-
+        self.overpass_is_pm = False
         self.grid = EASE36CellGrid() if grid is None else grid
 
         if type(parameter) != list:
@@ -90,8 +130,14 @@ class SPL3SMP_Img(ImageBase):
         self.var_overpass_str = var_overpass_str
         self.parameters = parameter
         self.flatten = flatten
-
+    def toggle(self):
+        """Toggle the state and return the new value."""
+        self.overpass_is_pm = not self.overpass_is_pm
+        return self.overpass_is_pm
+    # toggle()
     def read(self, timestamp=None) -> Image:
+
+
         """
         Read a single h5 image file to pygeobase Image.
 
@@ -105,12 +151,44 @@ class SPL3SMP_Img(ImageBase):
         return_data = {}
         return_meta = {}
 
-        try:
-            ds = h5py.File(self.filename, mode='r')
-        except IOError as e:
-            print(e)
-            print(" ".join([self.filename, "can not be opened"]))
-            raise e
+        compare_dates(timestamp)
+        if len(self.filename) == 1:
+            try:
+                ds = h5py.File(self.filename[0], mode='r')
+            except IOError as e:
+                print(e)
+                print(" ".join([self.filename[0], "can not be opened"]))
+                raise e
+            increment_iteration_counter()
+            reset_date_counter()
+        else:
+            if iteration_counter == 0:
+                try:
+                    ds = h5py.File(self.filename[0], mode='r')
+                except IOError as e:
+                    print(e)
+                    print(" ".join([self.filename[0], "can not be opened"]))
+                    raise e
+                increment_iteration_counter()
+
+            else:
+                if self.overpass == 'BOTH':
+                    try:
+                        ds = h5py.File(self.filename[-date_counter//2], mode='r')
+                    except IOError as e:
+                        print(e)
+                        print(" ".join([self.filename[-date_counter//2], "can not be opened"]))
+                        raise e
+                    increment_date_counter()
+                else:
+                    try:
+                        ds = h5py.File(self.filename[-date_counter//1], mode='r')
+                    except IOError as e:
+                        print(e)
+                        print(" ".join([self.filename[-date_counter//1], "can not be opened"]))
+                        raise e
+                    increment_date_counter()
+
 
         if self.overpass is None:
             overpasses = []
@@ -125,63 +203,180 @@ class SPL3SMP_Img(ImageBase):
                     f'one overpass to load: {overpasses}')
             else:
                 self.overpass = overpasses[0].upper()
+
+        # elif self.overpass.upper() == 'both':
+        #     self.overpass = None
         else:
-            assert self.overpass in ['AM', 'PM']
+            assert self.overpass in ['AM', 'PM', 'BOTH']
 
         overpass = self.overpass
+        time_key = 'tb_time_seconds'
+        # time_key = None
+        if overpass == 'BOTH':
+            if overpass_state_AM:
+                op = 'AM'
+            else:
+                op = 'PM'
 
-        overpass_str = '_' + overpass.upper() if overpass else ''
-        sm_field = self.overpass_templ.format(orbit=overpass_str)
+            op_str = '_' + op.upper() if op else ''
+            sm_field = self.overpass_templ.format(orbit=op_str)
 
-        if sm_field not in ds.keys():
-            raise NameError(
-                sm_field,
-                'Field does not exists. Try deactivating overpass option.')
+            if sm_field not in ds.keys():
+                raise NameError(
+                    sm_field,
+                    'Field does not exists. Try deactivating overpass option.')
 
-        if overpass:
-            overpass_str = '_pm' if overpass == 'PM' else ''
+            if op_str == '_AM':
+                op_str = ''
+            else:
+                op_str = '_pm'
+
+            for parameter in self.parameters:
+                metadata = {}
+                param = ds[sm_field][parameter + op_str]
+                data = np.flipud(param[:]).flatten()
+
+                if self.grid is not None:
+                    data = data[self.grid.activegpis]
+                # mask according to valid_min, valid_max and _FillValue
+                try:
+                    fill_value = param.attrs['_FillValue']
+                    valid_min = param.attrs['valid_min']
+                    valid_max = param.attrs['valid_max']
+                    data = np.where(
+                        np.logical_or(data < valid_min, data > valid_max),
+                        fill_value, data)
+                except KeyError:
+                    pass
+
+                # fill metadata dictionary with metadata from image
+                for key in param.attrs:
+                    metadata[key] = param.attrs[key]
+
+                ret_param_name = parameter
+
+                if self.var_overpass_str:
+                    if op is None:
+                        warnings.warn(
+                            'Renaming variable only possible if overpass in given.'
+                            ' Use names as in file.')
+                        ret_param_name = parameter
+                    elif not parameter.endswith(f'_{op.lower()}'):
+                        ret_param_name = parameter + f'_{op.lower()}'
+
+                return_data[ret_param_name] = data
+                return_meta[ret_param_name] = metadata
+
         else:
-            overpass_str = ''
+            overpass_str = '_' + overpass.upper() if overpass else ''
+            sm_field = self.overpass_templ.format(orbit=overpass_str)
 
-        for parameter in self.parameters:
-            metadata = {}
-            param = ds[sm_field][parameter + overpass_str]
-            data = np.flipud(param[:]).flatten()
+            if sm_field not in ds.keys():
+                raise NameError(
+                    sm_field,
+                    'Field does not exists. Try deactivating overpass option.')
 
-            if self.grid is not None:
-                data = data[self.grid.activegpis]
-            # mask according to valid_min, valid_max and _FillValue
-            try:
-                fill_value = param.attrs['_FillValue']
-                valid_min = param.attrs['valid_min']
-                valid_max = param.attrs['valid_max']
-                data = np.where(
-                    np.logical_or(data < valid_min, data > valid_max),
-                    fill_value, data)
-            except KeyError:
-                pass
+            if overpass:
+                overpass_str = '_pm' if overpass == 'PM' else ''
+            else:
+                overpass_str = ''
 
-            # fill metadata dictionary with metadata from image
-            for key in param.attrs:
-                metadata[key] = param.attrs[key]
+            for parameter in self.parameters:
+                metadata = {}
+                param = ds[sm_field][parameter + overpass_str]
+                data = np.flipud(param[:]).flatten()
 
-            ret_param_name = parameter
+                if self.grid is not None:
+                    data = data[self.grid.activegpis]
+                # mask according to valid_min, valid_max and _FillValue
+                try:
+                    fill_value = param.attrs['_FillValue']
+                    valid_min = param.attrs['valid_min']
+                    valid_max = param.attrs['valid_max']
+                    data = np.where(
+                        np.logical_or(data < valid_min, data > valid_max),
+                        fill_value, data)
+                except KeyError:
+                    pass
 
-            if self.var_overpass_str:
-                if overpass is None:
-                    warnings.warn(
-                        'Renaming variable only possible if overpass in given.'
-                        ' Use names as in file.')
-                    ret_param_name = parameter
-                elif not parameter.endswith(f'_{overpass.lower()}'):
-                    ret_param_name = parameter + f'_{overpass.lower()}'
+                # fill metadata dictionary with metadata from image
+                for key in param.attrs:
+                    metadata[key] = param.attrs[key]
 
-            return_data[ret_param_name] = data
-            return_meta[ret_param_name] = metadata
+                ret_param_name = parameter
+
+                if self.var_overpass_str:
+                    if overpass is None:
+                        warnings.warn(
+                            'Renaming variable only possible if overpass in given.'
+                            ' Use names as in file.')
+                        ret_param_name = parameter
+                    elif not parameter.endswith(f'_{overpass.lower()}'):
+                        ret_param_name = parameter + f'_{overpass.lower()}'
+
+                return_data[ret_param_name] = data
+                return_meta[ret_param_name] = metadata
+
+        if overpass=='BOTH':
+            print(overpass_state_AM, counter)
+            if counter > 0:
+                overpass_change()
+                increment_counter()
+            else:
+                increment_counter()
+            print(overpass_state_AM)
+            print(ds.filename)
+            keys_pm = [element + '_pm' if isinstance(element, str) else element
+                        for element in self.parameters]
+            keys_am = [element + '_am' if isinstance(element, str) else element
+                       for element in self.parameters]
+
+            if op == 'AM':
+                return_data_am = {k: return_data[k] for k in keys_am}
+                return_data_am = {self.parameters[i]: value for i, (key, value) in enumerate(return_data_am.items())}
+                return_meta_am = {k: return_meta[k] for k in keys_am}
+                return_meta = {self.parameters[i]: value for i, (key, value) in enumerate(return_meta_am.items())}
+                df_returndata = pd.DataFrame.from_dict(return_data_am)
+                df_returndata['Overpass'] = 1
+            elif op == 'PM':
+
+                return_data_pm = {k: return_data[k] for k in keys_pm}
+                return_data_pm = {self.parameters[i]: value for i, (key, value) in enumerate(return_data_pm.items())}
+                return_meta_pm = {k: return_meta[k] for k in keys_pm}
+                return_meta = {self.parameters[i]: value for i, (key, value) in enumerate(return_meta_pm.items())}
+                df_returndata = pd.DataFrame.from_dict(return_data_pm)
+                df_returndata['Overpass'] = 2
+
+            return_data = {col: df_returndata[col].to_numpy() for col in df_returndata.columns}
+            return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1, 'valid_max': 2}
+        else:
+            keys_pm = [element + '_pm' if isinstance(element, str) else element
+                       for element in self.parameters]
+            keys_am = [element + '_am' if isinstance(element, str) else element
+                       for element in self.parameters]
+
+            if overpass == 'AM':
+                return_data_am = {k: return_data[k] for k in keys_am}
+                return_data_am = {self.parameters[i]: value for i, (key, value) in enumerate(return_data_am.items())}
+                return_meta_am = {k: return_meta[k] for k in keys_am}
+                return_meta = {self.parameters[i]: value for i, (key, value) in enumerate(return_meta_am.items())}
+                df_returndata = pd.DataFrame.from_dict(return_data_am)
+                df_returndata['Overpass'] = 1
+            elif overpass == 'PM':
+
+                return_data_pm = {k: return_data[k] for k in keys_pm}
+                return_data_pm = {self.parameters[i]: value for i, (key, value) in enumerate(return_data_pm.items())}
+                return_meta_pm = {k: return_meta[k] for k in keys_pm}
+                return_meta = {self.parameters[i]: value for i, (key, value) in enumerate(return_meta_pm.items())}
+                df_returndata = pd.DataFrame.from_dict(return_data_pm)
+                df_returndata['Overpass'] = 2
+
+            return_data = {col: df_returndata[col].to_numpy() for col in df_returndata.columns}
+            return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1, 'valid_max': 2}
 
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,
-                         return_data, return_meta, timestamp)
+                         return_data, return_meta, timestamp, timekey=time_key)
         else:
 
             if len(self.grid.subset_shape) != 2:
@@ -210,7 +405,7 @@ class SPL3SMP_Img(ImageBase):
                 for param, data in return_data.items()
             }
 
-            return Image(lons, lats, data, return_meta, timestamp)
+            return Image(lons, lats, data, return_meta, timestamp, timekey=time_key)
 
     def write(self, data):
         raise NotImplementedError()
@@ -220,6 +415,61 @@ class SPL3SMP_Img(ImageBase):
 
     def close(self):
         pass
+
+def convert_seconds_to_date(seconds, start_date):
+    """
+    Convert a number of seconds since a reference date into the resulting date and time.
+
+    Args:
+        seconds (int): The number of seconds to add. Can be positive or negative.
+        start_date (datetime): The reference date as a `datetime` object.
+
+    Returns:
+        str: A string representation of the calculated date and time in the 'YYYY-MM-DD HH:MM:SS' format.
+    """
+    result_datetime = (start_date + timedelta(seconds=seconds))
+
+    # Return the result as a string in the desired format
+    return result_datetime
+
+def calculate_final_values(start_date, seconds_since_start):
+        """
+        Calculates and returns the final computed values based on the logic.
+
+        Returns:
+            tuple: A tuple containing:
+                - float: Seconds since the start date
+                - datetime: The calculated end time
+                - datetime: The day with year, month, and day
+        """
+        current_time = convert_seconds_to_date(seconds_since_start, start_date)
+        day = datetime(current_time.year, current_time.month, current_time.day)
+        seconds_since_start = (day - start_date).total_seconds()
+        return seconds_since_start
+
+def drop_na_from_columns(df, columns):
+    """
+    Drops rows where any of the specified columns contain NaN,
+    even if one or more of the columns do not exist in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        columns (list): List of column names to check for NaN values.
+
+    Returns:
+        pd.DataFrame: Filtered DataFrame.
+    """
+    # Filter out columns that do not exist in the DataFrame
+    existing_columns = [col for col in columns if col in df.columns]
+
+    # If no columns from the list exist, return the original DataFrame
+    if not existing_columns:
+        print("No specified columns exist in the DataFrame.")
+        return df
+
+    # Drop rows where values in any of the existing_columns are NaN
+    return df.dropna(subset=existing_columns)
+
 
 
 class SPL3SMP_Ds(MultiTemporalImageBase):
@@ -350,8 +600,9 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
                f"Sorting and using last file, with the higher CRID: {sorted(filename)[-1]}"
             )
             filename = sorted(filename)
-
-        return filename[-1]
+        filenames = sorted(filename)
+        # filename[-1],
+        return filename
 
 class SMAPTs(GriddedNcOrthoMultiTs):
 

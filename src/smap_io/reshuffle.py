@@ -28,15 +28,11 @@ time series format using the repurpose package
 import os
 import sys
 import argparse
-import numpy as np
 from datetime import datetime
 
-from pygeogrids import BasicGrid
-
-from repurpose.img2ts import Img2Ts
-from ease_grid import EASE2_grid
-from smap_io.interface import SPL3SMP_Ds
+from img2ts import Img2Ts
 from smap_io.grid import EASE36CellGrid
+from interface import SPL3SMP_Ds
 
 
 def reshuffle(input_root,
@@ -44,6 +40,7 @@ def reshuffle(input_root,
               startdate,
               enddate,
               parameters,
+              use_all_elements_per_folder,
               imgbuffer=200,
               **ds_kwargs):
     """
@@ -76,23 +73,41 @@ def reshuffle(input_root,
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
+    exclude_missing_time_stamps_bool = ds_kwargs.get('exclude_missing_time_stamps')
+    del ds_kwargs['exclude_missing_time_stamps']
     if 'grid' not in ds_kwargs.keys():
         ds_kwargs['grid'] = EASE36CellGrid()
     ds_kwargs['parameter'] = parameters
     ds_kwargs['flatten'] = True
 
     input_dataset = SPL3SMP_Ds(input_root, **ds_kwargs)
+    # input_test = SPL3SMP_Ds(input_root, overpass='PM', var_overpass_str=False,**ds_kwargs)
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
     # get time series attributes from first day of data.
     data = input_dataset.read(startdate)
+    # Get metadata attributes from the first day of data.
 
     # global_attr['overpass'] = getattr(input_dataset.fid, 'overpass')
 
     input_grid = ds_kwargs['grid'].cut() if \
         isinstance(ds_kwargs['grid'], EASE36CellGrid) else ds_kwargs['grid']
+
+    time_stamps_per_day = count_elements_in_folders(input_root, startdate, enddate)
+    if use_all_elements_per_folder:
+        if ds_kwargs['overpass'] == 'BOTH':
+            for i in range(len(time_stamps_per_day)):
+                time_stamps_per_day[i] = time_stamps_per_day[i] * 2
+            else:
+                pass
+    else:
+        if ds_kwargs['overpass'] == 'BOTH':
+            time_stamps_per_day = [2] * len(time_stamps_per_day)
+        else:
+            time_stamps_per_day = [1] * len(time_stamps_per_day)
+
 
     reshuffler = Img2Ts(
         input_dataset=input_dataset,
@@ -101,10 +116,16 @@ def reshuffle(input_root,
         enddate=enddate,
         input_grid=input_grid,
         imgbuffer=imgbuffer,
-        cellsize_lat=5.0,
-        cellsize_lon=5.0,
+        cellsize_lat=5.0,  # Default cellsize for latitude
+        cellsize_lon=5.0,  # Default cellsize for longitude
         global_attr=None,
-        ts_attributes=data.metadata)
+        ts_attributes=data.metadata,
+        time_units='seconds since 2000-01-01 12:00:00',
+        exclude_missing_time_stamps=exclude_missing_time_stamps_bool,
+        overpass=ds_kwargs['overpass'],
+        elements_per_folders=time_stamps_per_day
+    )
+
     reshuffler.calc()
 
 
@@ -121,6 +142,57 @@ def str2bool(val):
     else:
         return False
 
+# def count_elements_in_folders(directory):
+#     element_counts = []  # Initialize an empty list to store element counts
+#
+#     # List all folders in the given directory
+#     for foldername in os.listdir(directory):
+#         folder_path = os.path.join(directory, foldername)
+#
+#         # Check if it's a directory
+#         if os.path.isdir(folder_path):
+#             # Get the list of all elements in the folder and append the count to the list
+#             elements = os.listdir(folder_path)
+#             element_counts.append((foldername, len(elements)))  # Use a tuple to store both
+#
+#     # Sort the list of tuples by the folder name (first element of the tuple)
+#     element_counts = sorted(element_counts, key=lambda x: x[0])
+#
+#     # Extract just the element counts (second element of each tuple)
+#     # element_counts = [count for _, count in element_counts]
+#
+#     return element_counts
+
+
+def count_elements_in_folders(directory, start_date, end_date):
+    element_counts = []  # Initialize an empty list to store element counts
+
+    # List all folders in the given directory
+    for foldername in os.listdir(directory):
+        folder_path = os.path.join(directory, foldername)
+
+        # Check if it's a directory
+        if os.path.isdir(folder_path):
+            try:
+                # Assuming folder names are in "YYYY-MM-DD" format
+                folder_date = datetime.strptime(foldername, "%Y.%m.%d")
+
+                # Check if the folder date is within the specified range
+                if start_date <= folder_date <= end_date:
+                    # Get the list of all elements in the folder and append the count to the list
+                    elements = os.listdir(folder_path)
+                    element_counts.append((foldername, len(elements)))  # Use a tuple to store both
+            except ValueError:
+                # Skip folders with names that can't be parsed as dates
+                continue
+
+    # Sort the list of tuples by the folder name (first element of the tuple)
+    element_counts = sorted(element_counts, key=lambda x: x[0])
+
+    # Extract just the element counts (second element of each tuple)
+    element_counts = [count for _, count in element_counts]
+
+    return element_counts
 
 def parse_args(args):
     """
@@ -158,13 +230,25 @@ def parse_args(args):
         help=("Parameters to convert as strings as in the downloaded file"
               "e.g. soil_moisture soil_moisture_error"))
     parser.add_argument(
+        'use_all_elements_per_folder',
+        type=bool,
+        default=False,
+        help=("If True, use all elements in folder for time series.")
+    )
+    parser.add_argument(
         "--overpass",
-        choices=['AM', 'PM'],
+        choices=['AM', 'PM', 'both'],
         type=str,
         default='AM',
         help=("Select 'PM' for the descending overpass or 'AM' "
               "for the ascending one. Only necessary if dataset "
               "contains multiple overpasses. Default: 'AM'"))
+    parser.add_argument(
+        "--exclude_missing_time_stamps",
+        choices=[True, False],
+        type=bool,
+        default=True,
+        help=("Decide if timestamps with no Observations should be excluded from the time series"))
     parser.add_argument(
         "--var_overpass_str",
         type=str2bool,
@@ -230,6 +314,7 @@ def main(args):
         args.start,
         args.end,
         args.parameters,
+        args.use_all_elements_per_folder,
         grid=grid,
         overpass=None if args.overpass in ['False', 'false', 'none', 'None']
         else args.overpass,
@@ -243,5 +328,22 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    grid = EASE36CellGrid(only_land=True)
+    reshuffle("/home/tunterho/smap_io/data/input",
+              "/home/tunterho/smap_io/data/output009/AM_PM",
+
+              datetime(2015, 3, 31, 0, 0, 0),
+              datetime(2025, 1, 26, 23, 59, 59),
+
+              ["soil_moisture", 'soil_moisture_error', "retrieval_qual_flag", "freeze_thaw_fraction", "surface_flag", "surface_temperature", "vegetation_opacity", "vegetation_water_content", "landcover_class", 'static_water_body_fraction', 'tb_time_seconds'],
+              False,
+              grid=grid,
+              overpass='BOTH',
+              exclude_missing_time_stamps=True
+              )
+
+    #from smap_io.interface import SMAPTs
+
+    #ts_reader = SMAPTs("/tmp/test", ioclass_kws={'read_bulk': True})
+    #ts = ts_reader.read(15, 45)  # lon, lat
 
