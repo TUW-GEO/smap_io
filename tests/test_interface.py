@@ -9,7 +9,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
+# The above copyright notice and this permission notice shall be included in
+# all
 # copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -30,8 +31,12 @@ import os
 from datetime import datetime
 import numpy as np
 from smap_io.grid import EASE36CellGrid
+import pytest
+import src.smap_io.interface as interface
 
 glob_shape = (406, 964)
+
+
 def idx2d_to_1d(idx_2d, shape=glob_shape, flip=True):
     if flip:
         return (shape[0] - (idx_2d[0] + 1)) * shape[1] + idx_2d[1]
@@ -53,7 +58,8 @@ def test_SPL3SMP_Img_land():
     assert image.data['soil_moisture'][0] == -9999.
     gpi, _ = grid.find_nearest_gpi(124.903, -32.311)
     _id = np.where(grid.activegpis == gpi)[0]
-    np.testing.assert_almost_equal(image.data['soil_moisture'][_id], 0.059678, 5)
+    np.testing.assert_almost_equal(image.data['soil_moisture'][_id], 0.059678,
+                                   5)
 
 
 def test_SPL3SMP_Img():
@@ -110,15 +116,20 @@ def test_SPL3SMP_Img_flatten():
     assert sorted(metadata_keys) == sorted(
         list(image.metadata['soil_moisture_pm'].keys()))
 
-    ds = SPL3SMP_Img(fname, flatten=False, overpass='PM', var_overpass_str=True,
-                     grid=EASE36CellGrid(bbox=(lon-0.5, lat-0.5, lon+0.5, lat+0.5)))
+    ds = SPL3SMP_Img(fname, flatten=False, overpass='PM',
+                     var_overpass_str=True,
+                     grid=EASE36CellGrid(
+                         bbox=(lon - 0.5, lat - 0.5, lon + 0.5, lat + 0.5)))
     image_small = ds.read()
-    np.testing.assert_almost_equal(image_small['soil_moisture_pm'][1,1], ref_sm, 5)
+    np.testing.assert_almost_equal(image_small['soil_moisture_pm'][1, 1],
+                                   ref_sm, 5)
+
 
 def test_SPL3SMP_Ds_read_by_date():
     root_path = os.path.join(os.path.dirname(__file__),
                              'smap_io-test-data', 'SPL3SMP.006')
-    ds = SPL3SMP_Ds(root_path, crid=16515, overpass='AM', var_overpass_str=False)
+    ds = SPL3SMP_Ds(root_path, crid=16515, overpass='AM',
+                    var_overpass_str=False)
     image = ds.read(datetime(2020, 4, 1))
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
@@ -127,11 +138,14 @@ def test_SPL3SMP_Ds_read_by_date():
     np.testing.assert_almost_equal(image.data['soil_moisture'][76, 466],
                                    0.281782, 5)
 
-    ds = SPL3SMP_Ds(root_path, crid=16515, overpass='PM', var_overpass_str=True,
+    ds = SPL3SMP_Ds(root_path, crid=16515, overpass='PM',
+                    var_overpass_str=True,
                     flatten=True)
     image = ds.read(datetime(2020, 4, 1))
-    np.testing.assert_almost_equal(image.data['soil_moisture_pm'][idx2d_to_1d((76,466))],
-                                   0.258598, 5)
+    np.testing.assert_almost_equal(
+        image.data['soil_moisture_pm'][idx2d_to_1d((76, 466))],
+        0.258598, 5)
+
 
 def test_SPL3SMP_Ds_iterator():
     root_path = os.path.join(os.path.dirname(__file__),
@@ -149,5 +163,36 @@ def test_SPL3SMP_Ds_iterator():
     assert read_img == 2
 
 
+def test_initial_overpass_state_AM_status():
+    assert type(interface.overpass_state_AM) == bool
+    assert interface.overpass_state_AM == True
+
+
+def test_overpass_change():
+    interface.overpass_change('overpass_state_AM')
+
+    # Verify that the value in 'interface' has changed
+    assert interface.overpass_state_AM is False
+
+    # Call the function again to toggle it back
+    interface.overpass_change('overpass_state_AM')
+
+    # Verify that the value in 'interface' is toggled back to the original
+    assert interface.overpass_state_AM is True
+
+    # Test non-existent variable in 'interface'
+    with pytest.raises(NameError):
+        interface.overpass_change('non_existent_var')
+
+def test_initial_counter_status():
+    assert type(interface.counter) == int
+    assert interface.counter == 0
+
+def test_increment_counter():
+    counter_before = interface.counter
+    interface.increment_counter('counter')
+
+    # Verify that the value in 'interface' has changed
+    assert counter_before + 1 == interface.counter
 if __name__ == '__main__':
     test_SPL3SMP_Ds_iterator()
