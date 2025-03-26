@@ -31,7 +31,7 @@ import sys
 import argparse
 from datetime import datetime
 
-from img2ts import Img2Ts
+from repurpose.img2ts import Img2Ts
 from smap_io.grid import EASE36CellGrid
 from interface import SPL3SMP_Ds
 

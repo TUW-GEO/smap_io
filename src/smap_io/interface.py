@@ -29,6 +29,7 @@ import os
 import pandas as pd
 from pygeobase.io_base import ImageBase, MultiTemporalImageBase
 from pygeobase.object_base import Image
+from pygeogrids.netcdf import load_grid
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from pynetcf.time_series import GriddedNcContiguousRaggedTs
 import pygeogrids.netcdf as ncdf
@@ -39,19 +40,23 @@ from datetime import timedelta
 import warnings
 from smap_io.grid import EASE36CellGrid
 from datetime import datetime
+from pynetcf.time_series import GriddedNcIndexedRaggedTs
 
 counter = 0
-# def increment_counter():
-#     global counter
-#     counter += 1
+
+
+
 def increment_counter(var_name):
     if var_name in globals():
-        globals()[var_name] +=1
+        globals()[var_name] += 1
         # print(f"'{var_name}'")
     else:
         raise NameError(f"Global variable '{var_name}' is not defined.")
 
+
 overpass_state_AM = True
+
+
 def overpass_change(var_name):
     if var_name in globals():
         globals()[var_name] = not globals()[var_name]
@@ -134,7 +139,6 @@ class SPL3SMP_Img(ImageBase):
         self.flatten = flatten
         self.time_key = time_key
 
-
     def read(self, timestamp=None) -> Image:
 
         """
@@ -156,7 +160,6 @@ class SPL3SMP_Img(ImageBase):
             print(e)
             print(" ".join([self.filename, "can not be opened"]))
             raise e
-
 
         if self.overpass is None:
             overpasses = []
@@ -354,7 +357,8 @@ class SPL3SMP_Img(ImageBase):
 
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,
-                         return_data, return_meta, timestamp, timekey=self.time_key)
+                         return_data, return_meta, timestamp,
+                         timekey=self.time_key)
         else:
 
             if len(self.grid.subset_shape) != 2:
@@ -394,7 +398,6 @@ class SPL3SMP_Img(ImageBase):
 
     def close(self):
         pass
-
 
 
 class SPL3SMP_Ds(MultiTemporalImageBase):
@@ -584,3 +587,46 @@ class SMAPTs(GriddedNcOrthoMultiTs):
 
         grid = ncdf.load_grid(grid_path)
         super(SMAPTs, self).__init__(ts_path, grid, **kwargs)
+
+
+class SMAPL3_V9Reader(GriddedNcIndexedRaggedTs):
+    """
+        Class for reading SMAP Level 3 version 9 time series data. Provides
+        methods to
+        load and filter soil moisture datasets for further processing. This
+        class is
+        compatible with NetCDF files and supports indexed ragged time-series
+        formats.
+
+        Parameters
+        ----------
+        ts_path : str
+            Directory where the netcdf time series files are stored
+    """
+
+    def __init__(self, *args, **kwargs):
+        if os.path.exists(os.path.join(args[0], "grid.nc")):
+            grid = load_grid(os.path.join(args[0], "grid.nc"))
+        else:
+            grid = None
+        kwargs['grid'] = grid
+        super().__init__(*args, **kwargs)
+
+    def read(self, *args, **kwargs) -> pd.DataFrame:
+        ts = super().read(*args, **kwargs)
+        if (ts is not None) and not ts.empty:
+            ts = ts[ts.index.notnull()]
+            for col in ['soil_moisture_error', "retrieval_qual_flag",
+                        "freeze_thaw_fraction", "surface_flag",
+                        "surface_temperature", "vegetation_opacity",
+                        "vegetation_water_content", "landcover_class",
+                        'static_water_body_fraction']:
+                if col in ts.columns:
+                    ts[col] = ts[col].fillna(0)
+            if 'soil_moisture' in ts.columns:
+                ts = ts.dropna(subset='soil_moisture')
+        assert ts is not None, "No data read"
+        return ts
+
+
+
