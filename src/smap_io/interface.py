@@ -625,6 +625,7 @@ class SMAPL3_V9Reader(GriddedNcIndexedRaggedTs):
                     ts[col] = ts[col].fillna(0)
             if 'soil_moisture' in ts.columns:
                 ts = ts.dropna(subset='soil_moisture')
+                ts = ts.sort_index()
         assert ts is not None, "No data read"
         return ts
 
