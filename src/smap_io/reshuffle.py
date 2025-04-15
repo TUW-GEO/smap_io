@@ -33,7 +33,7 @@ from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
 from smap_io.grid import EASE36CellGrid
-from interface import SPL3SMP_Ds
+from smap_io.interface import SPL3SMP_Ds
 
 
 def reshuffle(input_root,
@@ -248,14 +248,15 @@ def main(args):
         args.start,
         args.end,
         args.parameters,
+        # imgbuffer=args.imgbuffer,
         # args.use_all_elements_per_folder,
-        args.time_key,
+        time_key=args.time_key,
         grid=grid,
         overpass=None if args.overpass in ['False', 'false', 'none', 'None']
         else args.overpass,
         var_overpass_str=args.var_overpass_str,
-        crid=args.crid,
-        imgbuffer=args.imgbuffer)
+        crid=args.crid
+        )
 
 
 def run():
@@ -278,4 +279,12 @@ if __name__ == '__main__':
               time_key='tb_time_seconds',
               grid=grid,
               overpass='BOTH')
+    reshuffle("/data/SMAP_L3_V9_input/input", "/home/tunterho/smap_io/data/output009/AM_PM",
+              datetime(2015, 3, 31, 0, 0, 0),
+              datetime(2025, 1, 26, 23, 59, 59),
+              ["soil_moisture", 'soil_moisture_error', "retrieval_qual_flag",
+               "freeze_thaw_fraction", "surface_flag", "surface_temperature",
+               "vegetation_opacity", "vegetation_water_content",
+               "landcover_class", 'static_water_body_fraction',
+              ])
 

@@ -44,7 +44,7 @@ from pynetcf.time_series import GriddedNcIndexedRaggedTs
 
 counter = 0
 
-
+overpass_state_AM = True
 
 def increment_counter(var_name):
     if var_name in globals():
@@ -53,8 +53,6 @@ def increment_counter(var_name):
     else:
         raise NameError(f"Global variable '{var_name}' is not defined.")
 
-
-overpass_state_AM = True
 
 
 def overpass_change(var_name):
@@ -281,7 +279,13 @@ class SPL3SMP_Img(ImageBase):
                             ' Use names as in file.')
                         ret_param_name = parameter
                     elif not parameter.endswith(f'_{overpass.lower()}'):
-                        ret_param_name = parameter + f'_{overpass.lower()}'
+                        if parameter == 'tb_time_seconds':
+                            # Keep tb_time_seconds unmodified
+                            ret_param_name = parameter
+                        else:
+                            # Append overpass or maintain current logic for other parameters
+                            ret_param_name = parameter + f'_{overpass.lower()}'
+                        # ret_param_name = parameter + f'_{overpass.lower()}'
 
                 return_data[ret_param_name] = data
                 return_meta[ret_param_name] = metadata
@@ -331,29 +335,48 @@ class SPL3SMP_Img(ImageBase):
                        for element in self.parameters]
 
             if overpass == 'AM':
-                return_data_am = {k: return_data[k] for k in keys_am}
-                return_data_am = {self.parameters[i]: value for i, (key, value)
-                                  in enumerate(return_data_am.items())}
-                return_meta_am = {k: return_meta[k] for k in keys_am}
-                return_meta = {self.parameters[i]: value for i, (key, value) in
-                               enumerate(return_meta_am.items())}
-                df_returndata = pd.DataFrame.from_dict(return_data_am)
-                df_returndata['Overpass'] = 1
+                if self.var_overpass_str:
+                    return_data_am = {k: return_data[k] for k in keys_am}
+                    return_data_am = {self.parameters[i]: value for i, (key, value)
+                                      in enumerate(return_data_am.items())}
+                    return_meta_am = {k: return_meta[k] for k in keys_am}
+                    return_meta = {self.parameters[i]: value for i, (key, value) in
+                                   enumerate(return_meta_am.items())}
+                    df_returndata = pd.DataFrame.from_dict(return_data_am)
+                    # df_returndata['Overpass'] = 1
+                    return_data = {col: df_returndata[col].to_numpy() for col
+                                   in
+                                   df_returndata.columns}
+                    # return_meta['Overpass'] = {'_FillValue': -9999,
+                    #                            'valid_min': 1,
+                    #                            'valid_max': 2}
+                else:
+                    pass
             elif overpass == 'PM':
+                if self.var_overpass_str:
 
-                return_data_pm = {k: return_data[k] for k in keys_pm}
-                return_data_pm = {self.parameters[i]: value for i, (key, value)
-                                  in enumerate(return_data_pm.items())}
-                return_meta_pm = {k: return_meta[k] for k in keys_pm}
-                return_meta = {self.parameters[i]: value for i, (key, value) in
-                               enumerate(return_meta_pm.items())}
-                df_returndata = pd.DataFrame.from_dict(return_data_pm)
-                df_returndata['Overpass'] = 2
+                    # return_data_pm = {k: return_data[k] for k in keys_pm}
+                    # return_data_pm = {self.parameters[i]: value for i, (key, value)
+                    #                   in enumerate(return_data_pm.items())}
+                    # return_meta_pm = {k: return_meta[k] for k in keys_pm}
+                    # return_meta = {self.parameters[i]: value for i, (key, value) in
+                    #                enumerate(return_meta_pm.items())}
+                    # df_returndata = pd.DataFrame.from_dict(return_data_pm)
+                    # # df_returndata['Overpass'] = 2
+                    # return_data = {col: df_returndata[col].to_numpy() for col
+                    #                in
+                    #                df_returndata.columns}
+                    return_data = return_data
+                    # return_meta['Overpass'] = {'_FillValue': -9999,
+                    #                            'valid_min': 1,
+                    #                            'valid_max': 2}
+                else:
+                    pass
 
-            return_data = {col: df_returndata[col].to_numpy() for col in
-                           df_returndata.columns}
-            return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1,
-                                       'valid_max': 2}
+            # return_data = {col: df_returndata[col].to_numpy() for col in
+            #                df_returndata.columns}
+            # return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1,
+            #                            'valid_max': 2}
 
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,

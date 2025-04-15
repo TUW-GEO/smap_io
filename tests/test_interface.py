@@ -33,7 +33,6 @@ import numpy as np
 from smap_io.grid import EASE36CellGrid
 import pytest
 import smap_io.interface as interface
-
 glob_shape = (406, 964)
 
 
