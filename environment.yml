@@ -3,7 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - pip
-- pip:
+- pip:   # make sure that these match with the packages in setup.cfg
   - numpy
   - netCDF4
   - h5py
