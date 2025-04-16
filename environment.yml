@@ -15,7 +15,7 @@ dependencies:
   - pygeobase
   - pygeogrids
   - pytesmo
-  - repurpose
+#  - repurpose
   - trollsift==0.2.1
   - pynetcf
   - more_itertools
@@ -24,3 +24,4 @@ dependencies:
   - pytest-cov
   - coverage
   - yapf
+  - git+https://github.com/ThoUnt96/repurpose.git@SMAP_L3_V9_implementation

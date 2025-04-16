@@ -4,7 +4,6 @@ import numpy as np
 from pygeogrids.netcdf import load_grid
 import os
 
-
 class EASE36CellGrid(CellGrid):
     """ CellGrid version of EASE36 Grid as used in SMAP 36km """
 
