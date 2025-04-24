@@ -15,16 +15,12 @@ on:
 
 jobs:
   build:
-    name: Build py${{ matrix.python-version }} @ ${{ matrix.os }} 🐍
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-#        python-version: ['3.8', '3.9', '3.10']
-        python-version: ['3.8', '3.9']
-        os: ["ubuntu-latest"]
-        include:
-          - os: "windows-latest"
-            python-version: '3.10'
+        python-version: ['3.9', '3.12']
+        os: ["ubuntu-latest",  "windows-latest"]
+    name: py${{ matrix.python-version }}@${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,10 +32,10 @@ jobs:
         run: git lfs checkout
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniconda-version: "latest"
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
           environment-file: environment.yml
+          channel-priority: flexible
           activate-environment: smap_io
           auto-activate-base: false
       - name: Print environment infos
@@ -53,9 +49,9 @@ jobs:
       - name: Export Environment
         shell: bash -l {0}
         run: |
-          mkdir -p .artifacts
+          mkdir -p artifacts
           filename=env_py${{ matrix.python-version }}_${{ matrix.os }}.yml
-          conda env export --no-builds | grep -v "prefix" > .artifacts/$filename
+          conda env export --no-builds | grep -v "prefix" > artifacts/$filename
       - name: Install package and test
         env:
           SMAPPWD: ${{ secrets.SMAPPWD }}
@@ -63,7 +59,7 @@ jobs:
         shell: bash -l {0}
         # On Windows, wget needs to be installed properly first, not tested here
         run: |
-          pip install -e .
+          pip install -e .[testing]
           if [ ${{ matrix.os }} == "windows-latest" ]
           then
             pytest --cache-clear -m "not wget"
@@ -81,24 +77,25 @@ jobs:
       - name: Create wheel and dist package
         shell: bash -l {0}
         run: |
-          git status
-          pip install setuptools_scm
+          pip install setuptools_scm twine
           if [ ${{ matrix.os }} == "windows-latest" ]
           then
             # build whls on windows
             pip install wheel
-            python setup.py bdist_wheel --dist-dir .artifacts/dist
+            python setup.py bdist_wheel --dist-dir artifacts/dist
           else
             # build dist on linux
-            python setup.py sdist --dist-dir .artifacts/dist
+            python setup.py sdist --dist-dir artifacts/dist
           fi
-          ls .artifacts/dist
+          ls artifacts/dist
+          twine check artifacts/dist/*
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Artifacts
-          path: .artifacts/*
-  coveralls:
+          name: Artifacts-py${{ matrix.python-version }}-${{ matrix.os }}
+          path: artifacts/*
+
+  publish-coverage:
     name: Submit Coveralls 👚
     needs: build
     runs-on: ubuntu-latest
@@ -109,8 +106,10 @@ jobs:
           pip3 install --upgrade coveralls && coveralls --service=github --finish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  publish:
-    name: Upload to PyPI
+
+  publish-pypi-package:
+    name: Publish PyPI 🚀
+    # Will only trigger when Tests have passed on release/tag from the TUW-GEO repository
     if: |
       startsWith(github.ref, 'refs/tags/v') &&
       startsWith(github.repository, 'TUW-GEO')
@@ -122,7 +121,11 @@ jobs:
           echo "GITHUB_REF = $GITHUB_REF"
           echo "GITHUB_REPOSITORY = $GITHUB_REPOSITORY"
       - name: Download Artifacts
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@v4
+        with:
+          path: Artifacts
+          pattern: Artifacts-*
+          merge-multiple: true
       - name: Display downloaded files
         run: ls -aR
       - name: Upload to PyPI
