@@ -346,7 +346,6 @@ class SPL3SMP_Img(ImageBase):
                     pass
 
 
-
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,
                          return_data, return_meta, timestamp,
