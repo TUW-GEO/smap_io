@@ -329,54 +329,23 @@ class SPL3SMP_Img(ImageBase):
             return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1,
                                        'valid_max': 2}
         else:
-            keys_pm = [element + '_pm' if isinstance(element, str) else element
-                       for element in self.parameters]
-            keys_am = [element + '_am' if isinstance(element, str) else element
-                       for element in self.parameters]
 
             if overpass == 'AM':
                 if self.var_overpass_str:
-                    return_data_am = {k: return_data[k] for k in keys_am}
-                    return_data_am = {self.parameters[i]: value for i, (key, value)
-                                      in enumerate(return_data_am.items())}
-                    return_meta_am = {k: return_meta[k] for k in keys_am}
-                    return_meta = {self.parameters[i]: value for i, (key, value) in
-                                   enumerate(return_meta_am.items())}
-                    df_returndata = pd.DataFrame.from_dict(return_data_am)
-                    # df_returndata['Overpass'] = 1
-                    return_data = {col: df_returndata[col].to_numpy() for col
-                                   in
-                                   df_returndata.columns}
-                    # return_meta['Overpass'] = {'_FillValue': -9999,
-                    #                            'valid_min': 1,
-                    #                            'valid_max': 2}
+                    return_data = return_data
+
                 else:
                     pass
             elif overpass == 'PM':
                 if self.var_overpass_str:
 
-                    # return_data_pm = {k: return_data[k] for k in keys_pm}
-                    # return_data_pm = {self.parameters[i]: value for i, (key, value)
-                    #                   in enumerate(return_data_pm.items())}
-                    # return_meta_pm = {k: return_meta[k] for k in keys_pm}
-                    # return_meta = {self.parameters[i]: value for i, (key, value) in
-                    #                enumerate(return_meta_pm.items())}
-                    # df_returndata = pd.DataFrame.from_dict(return_data_pm)
-                    # # df_returndata['Overpass'] = 2
-                    # return_data = {col: df_returndata[col].to_numpy() for col
-                    #                in
-                    #                df_returndata.columns}
+
                     return_data = return_data
-                    # return_meta['Overpass'] = {'_FillValue': -9999,
-                    #                            'valid_min': 1,
-                    #                            'valid_max': 2}
+
                 else:
                     pass
 
-            # return_data = {col: df_returndata[col].to_numpy() for col in
-            #                df_returndata.columns}
-            # return_meta['Overpass'] = {'_FillValue': -9999, 'valid_min': 1,
-            #                            'valid_max': 2}
+
 
         if self.flatten:
             return Image(self.grid.activearrlon, self.grid.activearrlat,
@@ -492,6 +461,7 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
             subpath_templ=subpath_templ,
             exact_templ=False,
             ioclass_kws=ioclass_kws)
+        self.overpass = overpass
 
     def tstamps_for_daterange(self, start_date, end_date):
         """
@@ -515,7 +485,10 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
         for i in range(diff.days + 1):
             daily_date = start_date + timedelta(days=i)
             timestamps.append(daily_date)
-
+        if self.overpass == 'BOTH':
+            timestamps = [item for item in timestamps for _ in range(2)]
+        else:
+            pass
         return timestamps
 
     def _build_filename(self, timestamp, custom_templ=None,

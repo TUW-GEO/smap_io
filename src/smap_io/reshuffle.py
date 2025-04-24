@@ -278,13 +278,6 @@ if __name__ == '__main__':
                'tb_time_seconds'],
               time_key='tb_time_seconds',
               grid=grid,
-              overpass='BOTH')
-    reshuffle("/data/SMAP_L3_V9_input/input", "/home/tunterho/smap_io/data/output009/AM_PM",
-              datetime(2015, 3, 31, 0, 0, 0),
-              datetime(2025, 1, 26, 23, 59, 59),
-              ["soil_moisture", 'soil_moisture_error', "retrieval_qual_flag",
-               "freeze_thaw_fraction", "surface_flag", "surface_temperature",
-               "vegetation_opacity", "vegetation_water_content",
-               "landcover_class", 'static_water_body_fraction',
-              ])
+              overpass='AM')
+
 
