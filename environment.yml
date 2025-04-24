@@ -1,27 +1,50 @@
+#name: smap_io
+#channels:
+#- conda-forge
+#dependencies:
+#- numpy
+#- h5py
+#- netcdf4
+#- pyproj
+#- pandas
+#- pyresample
+#- pip
+#- pip:
+#  - git+https://github.com/sebhahn/datedown@da7f25d206593a2b4c53d74e331565332227eebb
+#  - ease-grid
+#  - pygeobase
+#  - pygeogrids
+#  - pytesmo
+##  - repurpose
+#  - trollsift==0.2.1
+#  - pynetcf
+#  - more_itertools
+#  - parse
+#  - pytest
+#  - pytest-cov
+#  - coverage
+#  - yapf
+#  - git+https://github.com/ThoUnt96/repurpose.git@SMAP_L3_V9_implementation
+
 name: smap_io
 channels:
 - conda-forge
 dependencies:
-- numpy
-- h5py
-- netcdf4
-- pyproj
-- pandas
-- pyresample
 - pip
-- pip:
-  - git+https://github.com/sebhahn/datedown@da7f25d206593a2b4c53d74e331565332227eebb
+- pip:   # make sure that these match with the packages in setup.cfg
+  - numpy
+  - netCDF4
+  - h5py
+  - pyproj
+  - pandas
+  - pyresample
+#  - repurpose
   - ease-grid
   - pygeobase
   - pygeogrids
-  - pytesmo
-#  - repurpose
+  - repurpose
   - trollsift==0.2.1
   - pynetcf
-  - more_itertools
   - parse
-  - pytest
-  - pytest-cov
-  - coverage
   - yapf
   - git+https://github.com/ThoUnt96/repurpose.git@SMAP_L3_V9_implementation
