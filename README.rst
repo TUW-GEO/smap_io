@@ -2,7 +2,7 @@
 smap_io
 =======
 
-.. image:: https://github.com/TUW-GEO/smap_io/workflows/Automated%20Tests/badge.svg?branch=master
+.. image:: https://github.com/TUW-GEO/smap_io/actions/workflows/ci.yml/badge.svg?branch=master
    :target: https://github.com/TUW-GEO/smap_io/actions
 
 .. image:: https://coveralls.io/repos/github/TUW-GEO/smap_io/badge.svg?branch=master
