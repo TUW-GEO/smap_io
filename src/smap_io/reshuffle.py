@@ -277,6 +277,6 @@ if __name__ == '__main__':
                'tb_time_seconds'],
               time_key='tb_time_seconds',
               grid=grid,
-              overpass='AM')
+              overpass='BOTH')
 
 
