@@ -108,7 +108,6 @@ def reshuffle(input_root,
         global_attr=None,  # Optional global attributes
         ts_attributes=data.metadata,  # Metadata for time-series
         time_units='seconds since 2000-01-01 12:00:00',  # Time unit format
-        overpass=ds_kwargs['overpass'],
         # Specifies AM/PM/BOTH overpass filtering
     )
 
