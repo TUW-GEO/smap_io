@@ -50,8 +50,6 @@ def increment_counter(var_name):
     if var_name in globals():
         globals()[var_name] += 1
         # print(f"'{var_name}'")
-    else:
-        raise NameError(f"Global variable '{var_name}' is not defined.")
 
 
 
