@@ -33,6 +33,8 @@ import numpy as np
 from smap_io.grid import EASE36CellGrid
 import pytest
 import smap_io.interface as interface
+from unittest.mock import patch, MagicMock
+from smap_io.interface import SPL3SMP_Img
 glob_shape = (406, 964)
 
 
@@ -193,5 +195,50 @@ def test_increment_counter():
 
     # Verify that the value in 'interface' has changed
     assert counter_before + 1 == interface.counter
+
+
+
+
+def test_read_file_open_error():
+    # Mock filename for the test
+    invalid_filename = "invalid_file.h5"
+
+    # Create an instance of SPL3SMP_Img with the mocked filename
+    reader = SPL3SMP_Img(filename=invalid_filename, mode="r",
+                         parameter="soil_moisture")
+
+    # Mock h5py.File to simulate IOError when it tries to open the file
+    with patch("h5py.File",
+               side_effect=IOError("File cannot be opened")) as mock_h5py:
+        # Assert that IOError is raised and caught properly
+        with pytest.raises(IOError, match="File cannot be opened"):
+            reader.read()
+
+        # Ensure the mocked function (h5py.File) was called with the correct filename
+        mock_h5py.assert_called_once_with(invalid_filename, mode="r")
+
+def test_missing_sm_field():
+    # Define a mocked 'sm_field' value
+    fname = os.path.join(os.path.dirname(__file__),
+                         'smap_io-test-data', 'SPL3SMP.006', '2020.04.02',
+                         'SMAP_L3_SM_P_20200402_R16515_001.h5')
+    grid = EASE36CellGrid(bbox=(112, -37, 130, -11), only_land=True)
+    sm_field = "missing_field"
+
+    # Create an instance of SPL3SMP_Img
+    ds = SPL3SMP_Img(fname, grid=grid, overpass='PM', var_overpass_str=False,
+                     flatten=True)
+
+    # Mock a dataset without the required field
+    mock_ds = MagicMock()
+    mock_ds.keys.return_value = ["another_field",
+                                 "unrelated_field"]  # Doesn't contain 'sm_field'
+
+    # Patch h5py.File to return the mock dataset
+    with patch("h5py.File", return_value=mock_ds):
+        # Ensure that a NameError is raised when accessing a missing field
+        with pytest.raises(NameError,
+                           match="Field does not exists. Try deactivating overpass option."):
+            ds.read()
 if __name__ == '__main__':
     test_SPL3SMP_Ds_iterator()
