@@ -10,7 +10,8 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
+# The above copyright notice and this permission notice shall be included in
+# all
 # copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -28,15 +29,11 @@ time series format using the repurpose package
 import os
 import sys
 import argparse
-import numpy as np
 from datetime import datetime
 
-from pygeogrids import BasicGrid
-
 from repurpose.img2ts import Img2Ts
-from ease_grid import EASE2_grid
-from smap_io.interface import SPL3SMP_Ds
 from smap_io.grid import EASE36CellGrid
+from smap_io.interface import SPL3SMP_Ds
 
 
 def reshuffle(input_root,
@@ -45,6 +42,7 @@ def reshuffle(input_root,
               enddate,
               parameters,
               imgbuffer=200,
+              time_key='tb_time_seconds',
               **ds_kwargs):
     """
     Reshuffle method applied to ERA-Interim data.
@@ -63,7 +61,8 @@ def reshuffle(input_root,
         parameters to read and convert
     overpass : str, optional (default: 'AM')
         Select 'AM' for the descending overpass or 'PM' for the ascending one.
-        If the version data does not contain multiple overpasses, this must be None
+        If the version data does not contain multiple overpasses, this must
+        be None
     var_overpass_str : bool, optional (default: True)
         Append overpass indicator to the loaded variables. E.g. Soil Moisture
         will be called soil_moisture_pm and soil_moisture_am, and soil_moisture
@@ -75,22 +74,24 @@ def reshuffle(input_root,
         Subgrid to limit reading to.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
+    time_key: str, optional (default: 'tb_time_seconds')
+        Time attribute key in the input files.
     """
     if 'grid' not in ds_kwargs.keys():
         ds_kwargs['grid'] = EASE36CellGrid()
     ds_kwargs['parameter'] = parameters
     ds_kwargs['flatten'] = True
 
-    input_dataset = SPL3SMP_Ds(input_root, **ds_kwargs)
+    input_dataset = SPL3SMP_Ds(input_root, time_key=time_key, **ds_kwargs)
 
+    # If the output folder doesn't exist, create it
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
     # get time series attributes from first day of data.
     data = input_dataset.read(startdate)
 
-    # global_attr['overpass'] = getattr(input_dataset.fid, 'overpass')
-
+    # Define the input grid, applying user-specified subgrid or using the default
     input_grid = ds_kwargs['grid'].cut() if \
         isinstance(ds_kwargs['grid'], EASE36CellGrid) else ds_kwargs['grid']
 
@@ -101,10 +102,15 @@ def reshuffle(input_root,
         enddate=enddate,
         input_grid=input_grid,
         imgbuffer=imgbuffer,
-        cellsize_lat=5.0,
-        cellsize_lon=5.0,
-        global_attr=None,
-        ts_attributes=data.metadata)
+        # Buffer size, defines how many images are processed at a time
+        cellsize_lat=5.0,  # Default latitude resolution for output grid
+        cellsize_lon=5.0,  # Default longitude resolution for output grid
+        global_attr=None,  # Optional global attributes
+        ts_attributes=data.metadata,  # Metadata for time-series
+        time_units='seconds since 2000-01-01 12:00:00',  # Time unit format
+        # Specifies AM/PM/BOTH overpass filtering
+    )
+
     reshuffler.calc()
 
 
@@ -122,6 +128,8 @@ def str2bool(val):
         return False
 
 
+
+
 def parse_args(args):
     """
     Parse command line parameters for conversion from image to time series.
@@ -134,7 +142,7 @@ def parse_args(args):
     args : argparse.Namespace
         Parsed command line parameters
     """
-
+    # Create argument parser
     parser = argparse.ArgumentParser(
         description="Convert SMAP data into time series format.")
     parser.add_argument(
@@ -158,8 +166,14 @@ def parse_args(args):
         help=("Parameters to convert as strings as in the downloaded file"
               "e.g. soil_moisture soil_moisture_error"))
     parser.add_argument(
+        "time_key",
+        metavar="time_key",
+        default="tb_time_seconds",
+        type=str,
+        help=("Time_key for non-orthogonal time series format"))
+    parser.add_argument(
         "--overpass",
-        choices=['AM', 'PM'],
+        choices=['AM', 'PM', 'BOTH'],
         type=str,
         default='AM',
         help=("Select 'PM' for the descending overpass or 'AM' "
@@ -171,15 +185,17 @@ def parse_args(args):
         default="False",
         help=(
             "Append overpass indicator to the reshuffled variables. "
-            "E.g. Soil Moisture will be called soil_moisture_pm and soil_moisture_am instead "
+            "E.g. Soil Moisture will be called soil_moisture_pm and "
+            "soil_moisture_am instead "
             "of soil_moisture. Default: False"))
     parser.add_argument(
         "--crid",
         type=int,
         default=None,
         help='Composite Release ID. Reshuffle only files with this ID.'
-        'See also https://nsidc.org/data/smap/data_versions#CRID '
-        'If not specified, all files in the dataset_root directory are used. Default: None'
+             'See also https://nsidc.org/data/smap/data_versions#CRID '
+             'If not specified, all files in the dataset_root directory are '
+             'used. Default: None'
     )
     parser.add_argument(
         "--bbox",
@@ -207,7 +223,8 @@ def parse_args(args):
     # set defaults that can not be handled by argparse
 
     print(
-        "Converting images in {ds_root} (ID:{crid}) from {start} to {end} to TS into folder {ts_root}."
+        "Converting images in {ds_root} (ID:{crid}) from {start} to {end} to "
+        "TS into folder {ts_root}."
         .format(
             ds_root=args.dataset_root,
             crid=args.crid if args.crid is not None else 'not specified',
@@ -230,12 +247,15 @@ def main(args):
         args.start,
         args.end,
         args.parameters,
+        # imgbuffer=args.imgbuffer,
+        # args.use_all_elements_per_folder,
+        time_key=args.time_key,
         grid=grid,
         overpass=None if args.overpass in ['False', 'false', 'none', 'None']
         else args.overpass,
         var_overpass_str=args.var_overpass_str,
-        crid=args.crid,
-        imgbuffer=args.imgbuffer)
+        crid=args.crid
+        )
 
 
 def run():
@@ -243,5 +263,20 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    grid = EASE36CellGrid(only_land=True)
+    reshuffle("/data/SMAP_L3_V9_input/input",
+              "/home/tunterho/smap_io/data/output009/AM_PM",
+
+              datetime(2015, 3, 31, 0, 0, 0),
+              datetime(2025, 1, 26, 23, 59, 59),
+
+              ["soil_moisture", 'soil_moisture_error', "retrieval_qual_flag",
+               "freeze_thaw_fraction", "surface_flag", "surface_temperature",
+               "vegetation_opacity", "vegetation_water_content",
+               "landcover_class", 'static_water_body_fraction',
+               'tb_time_seconds'],
+              time_key='tb_time_seconds',
+              grid=grid,
+              overpass='BOTH')
+
 
