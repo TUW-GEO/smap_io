@@ -35,6 +35,9 @@ import pytest
 import smap_io.interface as interface
 from unittest.mock import patch, MagicMock
 from smap_io.interface import SPL3SMP_Img
+import pytest
+from unittest.mock import MagicMock, patch
+import h5py
 glob_shape = (406, 964)
 
 
@@ -240,5 +243,32 @@ def test_missing_sm_field():
         with pytest.raises(NameError,
                            match="Field does not exists. Try deactivating overpass option."):
             ds.read()
+
+
+
+
+
+def test_overpass_is_None_error():
+    """
+    Test the behavior when there is only one overpass.
+    """
+    fname = os.path.join(os.path.dirname(__file__),
+                         'smap_io-test-data', 'SPL3SMP.006', '2020.04.02',
+                         'SMAP_L3_SM_P_20200402_R16515_001.h5')
+    grid = EASE36CellGrid(bbox=(112, -37, 130, -11), only_land=True)
+
+    # Create an instance of SPL3SMP_Img
+    ds = SPL3SMP_Img(fname, grid=grid, overpass=None, var_overpass_str=False,
+                     flatten=True)
+    with pytest.raises(
+            IOError) as excinfo:  # Context manager to capture the exception
+            ds.read()
+
+    # Assert the exception's message
+    assert str(excinfo.value) == (
+        "Multiple overpasses found in file, please specify one overpass "
+        "to load: ['AM', 'PM']"
+    )
+
 if __name__ == '__main__':
     test_SPL3SMP_Ds_iterator()
