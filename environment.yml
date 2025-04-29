@@ -10,7 +10,6 @@ dependencies:
   - pyproj
   - pandas
   - pyresample
-#  - repurpose
   - ease-grid
   - pygeobase
   - pygeogrids
@@ -19,4 +18,3 @@ dependencies:
   - pynetcf
   - parse
   - yapf
-  - git+https://github.com/ThoUnt96/repurpose.git@SMAP_L3_V9_implementation
