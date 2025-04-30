@@ -4,7 +4,10 @@ Changelog
 
 Unreleased
 ==========
--
+- New reader for GriddedNcIndexedRaggedTs timeseries format for SMAP-L3
+  version 9 data
+- Add option to create a timeseries containing both ascending and descending
+  overpasses
 
 Version 0.5
 ===========
