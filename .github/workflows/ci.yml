@@ -56,6 +56,7 @@ jobs:
         env:
           SMAPPWD: ${{ secrets.SMAPPWD }}
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
+          PIP_USE_PEP517: "1"
         shell: bash -l {0}
         # On Windows, wget needs to be installed properly first, not tested here
         run: |
@@ -77,14 +78,16 @@ jobs:
       - name: Create wheel and dist package
         shell: bash -l {0}
         run: |
-          mkdir -p artifacts/dist
-          if [ ${{ matrix.os }} == "ubuntu-latest" ]
+          pip install setuptools_scm twine
+          if [ ${{ matrix.os }} == "windows-latest" ]
           then
+            # build whls on windows
+            pip install wheel
+            python setup.py bdist_wheel --dist-dir artifacts/dist
+          else
             # build dist on linux
-            python -m build --outdir artifacts/dist
+            python setup.py sdist --dist-dir artifacts/dist
           fi
-          pip install wheel
-          python setup.py bdist_wheel --dist-dir artifacts/dist
           ls artifacts/dist
           twine check artifacts/dist/*
       - name: Upload Artifacts
