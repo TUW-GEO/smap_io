@@ -118,6 +118,7 @@ jobs:
     steps:
       - name: Print environment variables
         run: |
+          
           echo "GITHUB_REF = $GITHUB_REF"
           echo "GITHUB_REPOSITORY = $GITHUB_REPOSITORY"
       - name: Download Artifacts
