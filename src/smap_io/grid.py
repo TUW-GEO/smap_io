@@ -7,7 +7,7 @@ import os
 class EASE36CellGrid(CellGrid):
     """ CellGrid version of EASE36 Grid as used in SMAP 36km """
 
-    def __init__(self, bbox=None, margin=(None, 1), only_land=False):
+    def __init__(self, bbox=None, margin=(None, None), only_land=False):
         """
         Parameters
         ----------
