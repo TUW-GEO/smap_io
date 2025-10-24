@@ -43,6 +43,7 @@ def reshuffle(input_root,
               parameters,
               imgbuffer=200,
               time_key='tb_time_seconds',
+              ignore_failed_reads=False,
               **ds_kwargs):
     """
     Reshuffle method applied to ERA-Interim data.
@@ -109,6 +110,7 @@ def reshuffle(input_root,
         ts_attributes=data.metadata,  # Metadata for time-series
         time_units='seconds since 2000-01-01 12:00:00',  # Time unit format
         # Specifies AM/PM/BOTH overpass filtering
+        ignore_errors=ignore_failed_reads # Ignore failed reads
     )
 
     reshuffler.calc()
