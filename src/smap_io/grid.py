@@ -7,7 +7,7 @@ import os
 class EASE36CellGrid(CellGrid):
     """ CellGrid version of EASE36 Grid as used in SMAP 36km """
 
-    def __init__(self, bbox=None, margin=(None, 1), only_land=False):
+    def __init__(self, bbox=None, margin=(None, None), only_land=False):
         """
         Parameters
         ----------
@@ -15,10 +15,11 @@ class EASE36CellGrid(CellGrid):
             (min_lon, min_lat, max_lon, max_lat)
             Bounding box to create subset for, if None is passed a global
             grid is used.
-        margin: tuple, optional (default: (2,2))
+        margin: tuple, optional (default: (None, None))
             Removes x,y lines/columns from the global Ease grid
             can also be e.g. (None, 1) to only remove the top/bottom line and
             leave columns unchanged.
+            modifies the default margin to conform to the EASE36 grid specifications(406*964)
         only_land: bool, optional (default: False)
             Drop all points over oceans in the selected subset.
         """
