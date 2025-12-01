@@ -53,7 +53,7 @@ def test_reshuffle(only_land):
         args = [inpath, ts_path, startdate, enddate, time_key] + parameters + kwargs
 
         main(args)
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 915
         ds = SMAPTs(ts_path,  parameters=parameters,
                     ioclass_kws={'read_bulk': True, 'read_dates': False})
         ds = SMAPL3_V9Reader(ts_path, ioclass_kws={'read_bulk': True})
@@ -63,9 +63,10 @@ def test_reshuffle(only_land):
         soil_moisture_values_should = np.array(
             [0.262245], dtype=np.float32)
 
-        nptest.assert_almost_equal(ts['soil_moisture'].values,
+        nptest.assert_almost_equal(ts['soil_moisture_pm'].values,
                                    soil_moisture_values_should,
                                    decimal=6)
+
         ds.close()
 
 @pytest.mark.parametrize("only_land", [
@@ -86,7 +87,7 @@ def test_reshuffle_am(only_land):
         args = [inpath, ts_path, startdate, enddate, time_key] + parameters + kwargs
 
         main(args)
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 915
         ds = SMAPTs(ts_path,  parameters=parameters,
                     ioclass_kws={'read_bulk': True, 'read_dates': False})
         ds = SMAPL3_V9Reader(ts_path, ioclass_kws={'read_bulk': True})
@@ -96,7 +97,7 @@ def test_reshuffle_am(only_land):
         soil_moisture_values_should = np.array(
             [0.25584206, 0.24683787], dtype=np.float32)
 
-        nptest.assert_almost_equal(ts['soil_moisture'].values,
+        nptest.assert_almost_equal(ts['soil_moisture_am'].values,
                                    soil_moisture_values_should,
                                    decimal=6)
         ds.close()
@@ -119,7 +120,7 @@ def test_reshuffle_both(only_land):
         args = [inpath, ts_path, startdate, enddate, time_key] + parameters + kwargs
 
         main(args)
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 915
         ds = SMAPTs(ts_path,  parameters=parameters,
                     ioclass_kws={'read_bulk': True, 'read_dates': False})
         ds = SMAPL3_V9Reader(ts_path, ioclass_kws={'read_bulk': True})
@@ -152,7 +153,7 @@ def test_reshuffle_overpass_is_none(only_land):
         args = [inpath, ts_path, startdate, enddate, time_key] + parameters + kwargs
 
         main(args)
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 915
         ds = SMAPTs(ts_path,  parameters=parameters,
                     ioclass_kws={'read_bulk': True, 'read_dates': False})
         ds = SMAPL3_V9Reader(ts_path, ioclass_kws={'read_bulk': True})
@@ -162,7 +163,7 @@ def test_reshuffle_overpass_is_none(only_land):
         soil_moisture_values_should = np.array(
             [0.255842, 0.246838], dtype=np.float32)
 
-        nptest.assert_almost_equal(ts['soil_moisture'].values,
+        nptest.assert_almost_equal(ts['soil_moisture_am'].values,
                                    soil_moisture_values_should,
                                    decimal=6)
         ds.close()

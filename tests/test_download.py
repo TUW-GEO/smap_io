@@ -1,611 +1,364 @@
-"""
-Tests for the download module of GLDAS.
-"""
-from unittest import mock
+# test_downloader.py
+
+
+
+import smap_io.download as download
+# test_integration.py
+import io
+import json
 import os
 from datetime import datetime
-from smap_io.download import get_last_formatted_dir_in_dir
-from smap_io.download import get_first_formatted_dir_in_dir
-from smap_io.download import get_last_folder
-from smap_io.download import get_first_folder
-from smap_io.download import folder_get_first_last
-from smap_io.download import dates_empty_folders
-from unittest.mock import patch, call, MagicMock
-from smap_io.download import (wget_download, wget_map_download, download,
-                              get_start_date, parse_args, main)
-from argparse import Namespace
+from types import SimpleNamespace
+
+import pytest
+
+# ---------------------------
+# build_version_query_params
+# ---------------------------
+
+def test_build_version_query_params():
+    res = download.build_version_query_params("009")
+    assert res == "&version=009&version=09&version=9"
 
 
+# ---------------------------
+# filter_add_wildcards
+# ---------------------------
+
+@pytest.mark.parametrize(
+    "inp,expected",
+    [
+        ("abc", "*abc*"),
+        ("*abc", "*abc*"),
+        ("abc*", "*abc*"),
+        ("*abc*", "*abc*")
+    ],
+)
+def test_filter_add_wildcards(inp, expected):
+    assert download.filter_add_wildcards(inp) == expected
 
 
+# ---------------------------
+# build_filename_filter
+# ---------------------------
 
-def test_get_last_dir_in_dir():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    last_dir = get_last_formatted_dir_in_dir(path, "{:%Y.%m.%d}")
-    assert last_dir == '2020.04.02'
-
-
-def test_get_first_dir_in_dir():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    last_dir = get_first_formatted_dir_in_dir(path, "{:%Y.%m.%d}")
-    assert last_dir == '2020.04.01'
+def test_build_filename_filter_multiple():
+    res = download.build_filename_filter("A,B")
+    assert "&options[producer_granule_id][pattern]=true" in res
+    assert "&producer_granule_id[]=*A*" in res
+    assert "&producer_granule_id[]=*B*" in res
 
 
-def test_get_last_folder():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    last = get_last_folder(path, ['{:%Y.%m.%d}'])
-    last_should = os.path.join(path, "2020.04.02")
-    assert last == last_should
+# ---------------------------
+# build_query_params_str
+# ---------------------------
 
-
-def test_get_first_folder():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    last = get_first_folder(path, ['{:%Y.%m.%d}'])
-    last_should = os.path.join(path, "2020.04.01")
-    assert last == last_should
-
-
-def test_get_start_end():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    start, end = folder_get_first_last(path)
-    start_should = datetime(2020, 4, 1)
-    end_should = datetime(2020, 4, 2)
-    assert end == end_should
-    assert start == start_should
-
-
-def test_check_downloaded_data():
-    path = os.path.join(os.path.dirname(__file__),
-                        'smap_io-test-data', 'SPL3SMP.006')
-    missing = dates_empty_folders(path)
-    assert len(missing) == 0
-
-
-@patch("os.makedirs")
-@patch("subprocess.call")
-def test_wget_download_basic(mock_subprocess, mock_makedirs):
-    url = "http://example.com/file.txt"
-    target = "/path/to/download/file.txt"
-
-    # Call the function
-    wget_download(url, target)
-
-    # Expected command list
-    expected_command = [
-        "wget", url, "--retry-connrefused", "--no-check-certificate",
-        "--auth-no-challenge", "on", "-O", target
-    ]
-
-    # Check that os.makedirs is called to create the target directory
-    mock_makedirs.assert_called_once_with(os.path.split(target)[0])
-
-    # Check that the subprocess.call is invoked with the correct command
-    mock_subprocess.assert_called_once_with(" ".join(expected_command),
-                                            shell=True)
-
-
-@patch("os.makedirs")
-@patch("subprocess.call")
-def test_wget_download_with_authentication(mock_subprocess, mock_makedirs):
-    url = "http://example.com/protected/file.txt"
-    target = "/path/to/download/file.txt"
-    username = "user"
-    password = "pass"
-
-    # Call the function
-    wget_download(url, target, username=username, password=password)
-
-    # Expected command list
-    expected_command = [
-        "wget", url, "--retry-connrefused", "--no-check-certificate",
-        "--auth-no-challenge", "on", "-O", target,
-        "--user=user", "--password=pass"
-    ]
-
-    mock_makedirs.assert_called_once_with(os.path.split(target)[0])
-    mock_subprocess.assert_called_once_with(" ".join(expected_command),
-                                            shell=True)
-
-
-@patch("os.makedirs")
-@patch("subprocess.call")
-def test_wget_download_with_cookie(mock_subprocess, mock_makedirs):
-    url = "http://example.com/file.txt"
-    target = "/path/to/download/file.txt"
-    cookie_file = "/path/to/cookies.txt"
-
-    # Call the function with a cookie file
-    wget_download(url, target, cookie_file=cookie_file)
-
-    # Expected command list
-    expected_command = [
-        "wget", url, "--retry-connrefused", "--no-check-certificate",
-        "--auth-no-challenge", "on", "-O", target,
-        "--load-cookies", cookie_file,
-        "--save-cookies", cookie_file,
-        "--keep-session-cookies"
-    ]
-
-    mock_makedirs.assert_called_once_with(os.path.split(target)[0])
-    mock_subprocess.assert_called_once_with(" ".join(expected_command),
-                                            shell=True)
-
-
-@patch("os.makedirs")
-@patch("subprocess.call")
-def test_wget_download_recursive(mock_subprocess, mock_makedirs):
-    url = "http://example.com/folder"
-    target = "/path/to/download"
-    filetypes = ["pdf", "txt"]
-
-    # Call the function with recursive download and filetypes
-    wget_download(url, target, recursive=True, filetypes=filetypes)
-
-    # Expected command list
-    expected_command = [
-        "wget", url, "--retry-connrefused", "--no-check-certificate",
-        "--auth-no-challenge", "on", "-P", target, "-nd", "-np", "-r",
-        "-A pdf,txt"
-    ]
-
-    # Ensure the target path is created
-    mock_makedirs.assert_called_once_with(os.path.split(target)[0])
-
-    # Check that subprocess.call is invoked with the full command
-    mock_subprocess.assert_called_once_with(" ".join(expected_command),
-                                            shell=True)
-
-
-@patch("smap_io.download.check_dl")
-@patch("smap_io.download.wget_download")
-def test_wget_map_download_success(mock_wget_download, mock_check_dl):
-    # Mock `check_dl` to return True, simulating a successful download
-    mock_check_dl.return_value = True
-
-    # Input variables
-    url_target = ["http://example.com/file.txt", "/path/to/download/file.txt"]
-
-    # Call the function
-    wget_map_download(url_target)
-
-    # Verify that `check_dl` is called once and `wget_download` is not called (because the download is already "successful")
-    mock_check_dl.assert_called_once_with(url_target[1])
-    mock_wget_download.assert_not_called()
-
-
-@patch("smap_io.download.check_dl")
-@patch("smap_io.download.wget_download")
-def test_wget_map_download_retries(mock_wget_download, mock_check_dl):
-    # Mock `check_dl` to fail the first 4 times and pass on the 5th attempt
-    mock_check_dl.side_effect = [False, False, False, False, True]
-
-    # Input variables
-    url_target = ["http://example.com/file.txt", "/path/to/download/file.txt"]
-
-    # Call the function
-    wget_map_download(url_target)
-
-    # Verify `check_dl` was called 5 times (once per retry attempt)
-    assert mock_check_dl.call_count == 5
-
-    # Verify `wget_download` was called 4 times (since the download succeeded on the 5th `check_dl`)
-    assert mock_wget_download.call_count == 4
-
-    # Verify the final calls to the mocked functions
-    mock_wget_download.assert_has_calls([
-                                            call(
-                                                url_target[0],
-                                                url_target[1],
-                                                username=None,
-                                                password=None,
-                                                cookie_file=None,
-                                                recursive=False,
-                                                filetypes=None,
-                                                robots_off=False
-                                            )
-                                        ] * 4)  # Called 4 times with the same arguments
-
-
-
-
-
-@patch("smap_io.download.wget_map_download")
-def test_download_single_process(mock_wget_map_download):
-    # Mock a successful download
-    mock_wget_map_download.return_value = True
-
-    urls = ["http://example.com/file1.txt", "http://example.com/file2.txt"]
-    targets = ["/path/to/file1.txt", "/path/to/file2.txt"]
-
-    # Call the function in single process mode
-    download(urls, targets, num_proc=1)
-
-    # Verify that wget_map_download is called for each URL-target pair
-    expected_calls = [
-        call([urls[0], targets[0]], None, None, mock.ANY, False, None, False),
-        call([urls[1], targets[1]], None, None, mock.ANY, False, None, False),
-    ]
-    mock_wget_map_download.assert_has_calls(expected_calls, any_order=False)
-
-
-
-
-@patch("smap_io.download.wget_map_download")
-def test_download_with_optional_parameters(mock_wget_map_download):
-    # Mock a successful download
-    mock_wget_map_download.return_value = True
-
-    urls = ["http://example.com/file1.txt"]
-    targets = ["/path/to/file1.txt"]
-
-    # Call the function with optional parameters
-    download(
-        urls,
-        targets,
-        num_proc=1,
-        username="user",
-        password="pass",
-        recursive=True,
-        filetypes=["txt", "csv"],
-        robots_off=True,
+def test_build_query_params_str_polygon_takes_precedence():
+    params = download.build_query_params_str(
+        short_name="SPL3SMP",
+        version="009",
+        time_start="2025-10-01",
+        time_end="2025-10-30",
+        bounding_box="0,0,1,1",
+        polygon="1,2,3,4,5,6",
+        filename_filter=None,
+        provider="TESTPROV",
     )
 
-    # Verify that wget_map_download is called with the correct arguments
-    mock_wget_map_download.assert_called_once_with(
-        [urls[0], targets[0]],
-        "user",
-        "pass",
-        mock.ANY,  # cookie_file will be a temporary file, so we match with ANY
-        True,  # recursive
-        ["txt", "csv"],  # filetypes
-        True,  # robots_off
-    )
+    assert "&short_name=SPL3SMP" in params
+    assert "&provider=TESTPROV" in params
+    assert "&polygon=1,2,3,4,5,6" in params
+    assert "&bounding_box=" not in params
+    assert "&temporal[]=2025-10-01,2025-10-30" in params
 
 
-@patch("smap_io.download.Pool")
-@patch("smap_io.download.wget_map_download")
-def test_download_error_handling(mock_wget_map_download, mock_pool):
-    # Mock the multiprocessing pool
-    mock_pool_instance = MagicMock()
-    mock_pool.return_value = mock_pool_instance
+# ---------------------------
+# get_speed
+# ---------------------------
 
-    urls = ["http://example.com/file1.txt", "http://example.com/file2.txt"]
-    targets = ["/path/to/file1.txt", "/path/to/file2.txt"]
-
-    # Mock wget_map_download to raise an exception for one URL
-    def mock_download(*args):
-        if args[0][0] == "http://example.com/file1.txt":
-            raise Exception("Download failed")
-        return True
-
-    mock_wget_map_download.side_effect = mock_download
-
-    # Call the function and ensure it runs in single-process mode
-    download(urls, targets, num_proc=1)
-
-    # Ensure the first URL raises an error while the second proceeds successfully
-    expected_calls = [
-        call([urls[0], targets[0]], None, None, mock.ANY, False, None, False),
-        call([urls[1], targets[1]], None, None, mock.ANY, False, None, False),
-    ]
-    mock_wget_map_download.assert_has_calls(expected_calls, any_order=False)
+def test_get_speed_zero_time():
+    assert download.get_speed(0, 1000) == ""
+    assert download.get_speed(-1, 1000) == ""
 
 
-@patch("smap_io.download.tempfile.NamedTemporaryFile")
-@patch("smap_io.download.wget_map_download")
-def test_download_creates_tempfile(mock_wget_map_download, mock_tempfile):
-    # Mock the temporary file creation
-    mock_temp_instance = MagicMock()
-    mock_temp_instance.name = "/path/to/temp_cookie_file"
-    mock_tempfile.return_value = mock_temp_instance
-
-    urls = ["http://example.com/file1.txt"]
-    targets = ["/path/to/file1.txt"]
-
-    # Call the function
-    download(urls, targets, num_proc=1)
-
-    # Ensure the temporary file is created and passed to wget_map_download
-    mock_tempfile.assert_called_once()
-    mock_wget_map_download.assert_called_once_with(
-        [urls[0], targets[0]],
-        None,
-        None,
-        "/path/to/temp_cookie_file",
-        False,
-        None,
-        False,
-    )
+def test_get_speed_positive():
+    result = download.get_speed(2, 2000)  # 2000/2 = 1000 B/s
+    assert result == "1.0kB/s"
 
 
-def test_get_start_date_valid_product():
-    # Test with a valid product that starts with "SPL3SMP"
-    product = "SPL3SMP.001"
-    expected_date = datetime(2015, 3, 31, 0)
+# ---------------------------
+# cmr_read_in_chunks
+# ---------------------------
 
-    assert get_start_date(product) == expected_date
+def test_cmr_read_in_chunks():
+    data = b"abcdefghijklmnopqrstuvwxyz"
+    stream = io.BytesIO(data)
 
-
-def test_get_start_date_invalid_product():
-    # Test with a product that does not start with "SPL3SMP"
-    product = "INVALID_PRODUCT"
-
-    assert get_start_date(product) is None
+    chunks = list(download.cmr_read_in_chunks(stream, chunk_size=5))
+    assert b"".join(chunks) == data
+    assert all(len(chunk) <= 5 for chunk in chunks)
 
 
-def test_get_start_date_empty_string():
-    # Test with an empty string
-    product = ""
+# ---------------------------
+# cmr_filter_urls
+# ---------------------------
 
-    assert get_start_date(product) is None
+def test_cmr_filter_urls():
+    entry_links = [
+        # invalid / skipped
+        {"title": "data", "rel": "data#"},                         # no href
+        {"href": "x1", "inherited": True, "rel": "data#"},         # inherited
+        {"href": "x2", "rel": "nope"},                             # rel not data#
+        {"href": "x3", "title": "opendap", "rel": "data#"},        # opendap
+        {"href": "file.dmrpp", "rel": "metadata#"},                # metadata .dmrpp
+        {"href": "s3credentials", "rel": "metadata#"},             # excluded explicitly
 
-def test_get_start_date_partial_match():
-    # Test with a string that includes "SPL3SMP" but does not start with it
-    product = "123SPL3SMP"
-
-    assert get_start_date(product) is None
-
-
-
-
-@patch("smap_io.download.get_start_date")
-@patch("smap_io.download.folder_get_first_last")
-def test_parse_args_with_all_arguments(mock_folder_get_first_last,
-                                       mock_get_start_date):
-    mock_folder_get_first_last.return_value = (None, None)
-    mock_get_start_date.return_value = datetime(2015, 3, 31)
-
-    # Mock input arguments
-    args = [
-        "data",  # localroot
-        "--start", "2023-01-01",
-        "--end", "2023-01-31",
-        "--product", "SPL4SMAU.004",
-        "--filetypes", "h5", "nc", "txt",
-        "--username", "user",
-        "--password", "pass",
-        "--n_proc", "4",
+        # valid
+        {"href": "https://example.com/file1.h5", "rel": "data#"},
+        {"href": "https://example.com/file1.h5", "rel": "data#"},  # duplicate filename
+        {"href": "https://example.com/file2.nc", "rel": "data#"},
     ]
 
-    # Call the function
-    parsed_args = parse_args(args)
+    search_results = {"feed": {"entry": [{"links": entry_links}]}}
 
-    # Expected result
-    expected = Namespace(
-        localroot="data",
-        start=datetime(2023, 1, 1),
-        end=datetime(2023, 1, 31),
-        product="SPL4SMAU.004",
-        filetypes=["h5", "nc", "txt"],
-        username="user",
-        password="pass",
-        n_proc=4,
-        urlroot="https://n5eil01u.ecs.nsidc.org",
-        urlsubdirs=["SMAP", "SPL4SMAU.004", "%Y.%m.%d"],
-        localsubdirs=["%Y.%m.%d"],
-    )
+    urls = download.cmr_filter_urls(search_results)
 
-    assert parsed_args == expected
+    assert "https://example.com/file1.h5" in urls
+    assert "https://example.com/file2.nc" in urls
+    assert "file.dmrpp" not in urls
+    assert "s3credentials" not in urls
+    assert urls.count("https://example.com/file1.h5") == 1
 
 
-@patch("smap_io.download.get_start_date")
-@patch("smap_io.download.folder_get_first_last")
-def test_parse_args_with_minimum_arguments(mock_folder_get_first_last,
-                                           mock_get_start_date):
-    # Mock folder_get_first_last: no files found
-    mock_folder_get_first_last.return_value = (None, None)
-    mock_get_start_date.return_value = datetime(2015, 3, 31)
-
-    # Mock input arguments
-    args = ["data"]
-
-    # Call the function
-    parsed_args = parse_args(args)
-
-    # Expected result
-    expected = Namespace(
-        localroot="data",
-        start=mock_get_start_date.return_value,
-        end=datetime.now(),
-        product="SPL3SMP.008",  # Default product
-        filetypes=["h5", "nc"],  # Default filetypes
-        username=None,
-        password=None,
-        n_proc=1,  # Default processes
-        urlroot="https://n5eil01u.ecs.nsidc.org",
-        urlsubdirs=["SMAP", "SPL3SMP.008", "%Y.%m.%d"],
-        localsubdirs=["%Y.%m.%d"],
-    )
-
-    assert parsed_args.localroot == expected.localroot
-    assert parsed_args.start == expected.start
-    assert parsed_args.product == expected.product
-    assert parsed_args.filetypes == expected.filetypes
-    assert parsed_args.username == expected.username
-    assert parsed_args.password == expected.password
-    assert parsed_args.n_proc == expected.n_proc
-    assert parsed_args.urlroot == expected.urlroot
-    assert parsed_args.urlsubdirs == expected.urlsubdirs
-    assert parsed_args.localsubdirs == expected.localsubdirs
+def test_cmr_filter_urls_empty():
+    assert download.cmr_filter_urls({}) == []
+    assert download.cmr_filter_urls({"feed": {}}) == []
+    assert download.cmr_filter_urls({"feed": {"entry": [{}]}}) == []
 
 
-@patch("smap_io.download.get_start_date")
-@patch("smap_io.download.folder_get_first_last")
-def test_parse_args_with_folder_dates(mock_folder_get_first_last,
-                                      mock_get_start_date):
-    # Mock folder_get_first_last: last data date available
-    mock_folder_get_first_last.return_value = (
-        datetime(2022, 12, 25), datetime(2022, 12, 31))
-    mock_get_start_date.return_value = datetime(2015, 3, 31)
+# ---------------------------
+# get_start_date
+# ---------------------------
 
-    # Mock input arguments
-    args = ["data"]
-
-    # Call the function
-    parsed_args = parse_args(args)
-
-    # Expected results:
-    # - start defaults to the last date in the folder
-    # - end defaults to now()
-    expected_start = datetime(2022, 12, 31)
-    expected_end = datetime.now()
-
-    assert parsed_args.start == expected_start
-    assert isinstance(parsed_args.end,
-                      datetime) and parsed_args.end.date() == expected_end.date()
+def test_get_start_date():
+    d = download.get_start_date("SPL3SMP")
+    assert d == datetime(2015, 3, 31, 0)
 
 
-@patch("smap_io.download.get_start_date")
-@patch("smap_io.download.folder_get_first_last")
-def test_parse_args_without_end_date(mock_folder_get_first_last,
-                                     mock_get_start_date):
-    mock_folder_get_first_last.return_value = (None, None)
-    mock_get_start_date.return_value = datetime(2015, 3, 31)
+# ======================================================================
 
-    # Mock input arguments without an end date
-    args = [
-        "data",
-        "--start", "2022-12-01",
+
+# -------------------------
+# Helpers for fake responses
+# -------------------------
+class FakeResponse:
+    def __init__(self, body_bytes=b"", headers=None):
+        self._body = io.BytesIO(body_bytes)
+        self.headers = headers or {}
+        # .info() in original code is used then cast to dict(response.info()).items()
+        # We'll make info() return a dict-like object
+        self._info = dict(self.headers)
+
+    def info(self):
+        return self._info
+
+    def read(self, amt=None):
+        # mimic urllib response.read() returning bytes
+        return self._body.read() if amt is None else self._body.read(amt)
+
+    @property
+    def url(self):
+        return "https://example.fake/resource"
+
+
+# -------------------------
+# Tests for cmr_search
+# -------------------------
+def test_cmr_search_multiple_pages(monkeypatch):
+    """
+    cmr_search performs iterative paging using the 'cmr-search-after' header
+    and aggregates URLs returned by cmr_filter_urls.
+    We'll monkeypatch:
+      - download.get_provider_for_collection -> returns a provider string
+      - download.urlopen (the function imported in the downloadule) -> returns two FakeResponses:
+         1) first response: has 'cmr-hits' header > CMR_PAGE_SIZE to force the '...' printing branch,
+            includes a cmr-search-after header to request next page, and returns a JSON body
+            with at least one entry link.
+         2) second response: returns JSON without useful links so loop exits.
+    """
+    # Provide a provider
+    monkeypatch.setattr(download, "get_provider_for_collection", lambda sn, v: "TESTPROV")
+
+    # Build a first "page" JSON with one entry that contains a valid data link
+    first_feed = {
+        "feed": {
+            "entry": [
+                {
+                    "links": [
+                        {"href": "https://example.com/file1.h5", "rel": "data#"},
+                        # one invalid link for coverage
+                        {"href": "https://example.com/skip.dmrpp", "rel": "metadata#"}
+                    ]
+                }
+            ]
+        }
+    }
+    second_feed = {"feed": {"entry": []}}
+
+    # Responses: first has cmr-hits and cmr-search-after header, second has none
+    first_body = json.dumps(first_feed).encode("utf-8")
+    second_body = json.dumps(second_feed).encode("utf-8")
+
+    responses = [
+        FakeResponse(body_bytes=first_body, headers={"cmr-hits": "2", "cmr-search-after": "page2"}),
+        FakeResponse(body_bytes=second_body, headers={}),
     ]
 
-    # Call the function
-    parsed_args = parse_args(args)
+    # monkeypatch download.urlopen to pop responses in order
+    def fake_urlopen(req, context=None):
+        return responses.pop(0)
 
-    # Expect the default end date to be `datetime.now()`
-    expected = datetime.now()
+    monkeypatch.setattr(download, "urlopen", fake_urlopen)
 
-    assert isinstance(parsed_args.end, datetime)
-    assert parsed_args.end.date() == expected.date()
+    # Run search (quiet True to reduce prints)
+    urls = download.cmr_search(short_name="SPL3SMP", version="009",
+                          time_start="2025-10-01", time_end="2025-10-10",
+                          quiet=True)
 
-
-@patch("smap_io.download.get_start_date")
-@patch("smap_io.download.folder_get_first_last")
-def test_parse_args_without_start_date(mock_folder_get_first_last,
-                                       mock_get_start_date):
-    # Mock folder_get_first_last to provide existing folder data
-    mock_folder_get_first_last.return_value = (
-        datetime(2022, 12, 25), datetime(2022, 12, 31))
-    mock_get_start_date.return_value = datetime(2015, 3, 31)
-
-    # Mock input arguments without a start date
-    args = [
-        "data",
-        "--end", "2023-01-01",
-    ]
-
-    # Call the function
-    parsed_args = parse_args(args)
-
-    # Expect the default start date to be taken from folder_get_first_last
-    expected_start = datetime(2022, 12, 31)
-
-    assert parsed_args.start == expected_start
-    assert parsed_args.end == datetime(2023, 1, 1)
+    # We expect the valid data link to be present
+    assert "https://example.com/file1.h5" in urls
+    # dmrpp link should be filtered out by cmr_filter_urls
+    assert not any(u.endswith(".dmrpp") for u in urls)
 
 
-@patch("smap_io.download.dates_empty_folders")
-@patch("smap_io.download.download_by_dt")
-@patch("smap_io.download.daily")
-@patch("smap_io.download.parse_args")
-def test_main_retries_three_times_and_aborts(mock_parse_args, mock_daily,
-                                             mock_download_by_dt,
-                                             mock_dates_empty_folders):
-    # Mock `parse_args`
-    mock_args = MagicMock()
-    mock_args.start = datetime(2023, 1, 1)
-    mock_args.end = datetime(2023, 1, 2)
-    mock_args.localroot = "/path/to/local"
-    mock_parse_args.return_value = mock_args
+# -------------------------
+# Tests for cmr_download
+# -------------------------
+def test_cmr_download_writes_file(tmp_path, monkeypatch):
+    """
+    Test that cmr_download writes a file under download_dir/YYYY.MM/filename
+    We'll:
+      - set download.download_dir to tmp_path
+      - provide a URL whose filename contains a date token in the 5th underscore field
+      - monkeypatch download.get_login_response to return a FakeResponse with content
+    """
+    # Prepare a fake URL with filename containing date in 5th underscore chunk
+    # Example filename format used in code: parts split by '_' and index 4 is date 'YYYYMMDD'
+    filename = "A_B_C_D_20250701_E.h5"
+    url = "https://example.com/" + filename
 
-    # Mock `daily` to return 2 dates
-    mock_daily.return_value = iter([
-        datetime(2023, 1, 1),
-        datetime(2023, 1, 2),
-    ])
+    # Make download_dir a temp directory
+    monkeypatch.setattr(download, "download_dir", str(tmp_path))
 
-    # Mock `dates_empty_folders` to always return missing dates (to simulate failure to download)
-    mock_dates_empty_folders.side_effect = [
-        [datetime(2023, 1, 1), datetime(2023, 1, 2)],  # First attempt
-        [datetime(2023, 1, 1), datetime(2023, 1, 2)],  # Second attempt
-        [datetime(2023, 1, 1), datetime(2023, 1, 2)],  # Third (final) attempt
-    ]
+    # Create response bytes and headers
+    file_content = b"hello world content"
+    length = len(file_content)
+    fake_response = FakeResponse(body_bytes=file_content, headers={"content-length": str(length)})
 
-    # Call the main function
-    main([])
+    # Response object must support iteration via cmr_read_in_chunks (it calls read(chunk_size))
+    # FakeResponse implemented read, so cmr_read_in_chunks will work.
 
-    # Assertions
-    # Assert `download_by_dt` is called 3 times (for 3 retries)
-    assert mock_download_by_dt.call_count == 3
+    # Patch get_login_response to return our fake response
+    monkeypatch.setattr(download, "get_login_response", lambda url, credentials, token: fake_response)
 
-    # Assert `dates_empty_folders` is called after each retry to check missing dates
-    assert mock_dates_empty_folders.call_count == 3
+    # Ensure target dir does not exist initially
+    # Call download with quiet True to suppress progress printing
+    download.cmr_download([url], username="user", password="pass", force=False, quiet=True)
 
-    # Assert `daily` is called once to generate the date range
-    mock_daily.assert_called_once_with(mock_args.start, mock_args.end)
+    # Determine expected file path created by cmr_download:
+    # date_str = filename.split('_')[4] -> '20250701'
+    file_date = "2025.07.01"
+    expected_dir = tmp_path / file_date
+    expected_path = expected_dir / filename
 
-
-@patch("smap_io.download.dates_empty_folders")
-@patch("smap_io.download.download_by_dt")
-@patch("smap_io.download.daily")
-@patch("smap_io.download.parse_args")
-def test_main_some_dates_missing_after_retries(mock_parse_args, mock_daily,
-                                               mock_download_by_dt,
-                                               mock_dates_empty_folders):
-    # Mock `parse_args`
-    mock_args = MagicMock()
-    mock_args.start = datetime(2023, 1, 1)
-    mock_args.end = datetime(2023, 1, 3)
-    mock_args.localroot = "/path/to/local"
-    mock_parse_args.return_value = mock_args
-
-    # Mock `daily` to return 3 dates
-    mock_daily.return_value = iter([
-        datetime(2023, 1, 1),
-        datetime(2023, 1, 2),
-        datetime(2023, 1, 3),
-    ])
-
-    # Mock `dates_empty_folders` to simulate some dates remain missing after retries
-    mock_dates_empty_folders.side_effect = [
-        [datetime(2023, 1, 1), datetime(2023, 1, 2)],  # First attempt
-        [datetime(2023, 1, 2)],  # Second attempt
-        [datetime(2023, 1, 2)],  # Third (final) attempt
-    ]
-
-    # Call the main function
-    main([])
-
-    # Assertions
-    # Assert `download_by_dt` is called 3 times (for 3 retries)
-    assert mock_download_by_dt.call_count == 3
-
-    # Assert `dates_empty_folders` is called after each retry
-    assert mock_dates_empty_folders.call_count == 3
-
-    # Assert `daily` function is called once
-    mock_daily.assert_called_once_with(mock_args.start, mock_args.end)
+    assert expected_path.exists()
+    # File content should match
+    with expected_path.open("rb") as fh:
+        data = fh.read()
+    assert data == file_content
 
 
-@patch("smap_io.download.dates_empty_folders")
-@patch("smap_io.download.download_by_dt")
-@patch("smap_io.download.parse_args")
-def test_main_no_initial_dates_to_download(mock_parse_args,
-                                           mock_download_by_dt,
-                                           mock_dates_empty_folders):
-    # Mock `parse_args`
-    mock_args = MagicMock()
-    mock_args.start = datetime(2023, 1, 1)
-    mock_args.end = datetime(2023, 1, 1)
-    mock_args.localroot = "/path/to/local"
-    mock_parse_args.return_value = mock_args
+def test_cmr_download_skips_existing_same_size(tmp_path, monkeypatch, capsys):
+    """
+    If a file already exists with the same size and force==False, cmr_download should skip writing it.
+    We'll create an existing file with the same byte length and ensure the function does not overwrite.
+    """
+    filename = "A_B_C_D_20250702_E.h5"
+    url = "https://example.com/" + filename
+    monkeypatch.setattr(download, "download_dir", str(tmp_path))
 
-    # Mock `daily` to return no dates
-    mock_dates_empty_folders.return_value = []
+    content = b"existing content"
+    length = len(content)
+    fake_response = FakeResponse(body_bytes=b"NEW_CONTENT_SHOULD_NOT_BE_WRITTEN", headers={"content-length": str(length)})
 
-    # Call the main function
-    main([])
+    monkeypatch.setattr(download, "get_login_response", lambda url, credentials, token: fake_response)
+
+    # Create the directory and existing file with the same size
+    file_date = "2025.07.02"
+    target_dir = tmp_path / file_date
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = target_dir / filename
+    with target_path.open("wb") as fh:
+        fh.write(content)
+    assert target_path.stat().st_size == length
+
+    # Now call cmr_download; since sizes match and force is False, it should skip (no exception)
+    download.cmr_download([url], username="u", password="p", force=False, quiet=True)
+
+    # After call, the file should still contain the original content
+    with target_path.open("rb") as fh:
+        newdata = fh.read()
+    assert newdata == content
+
+
+# -------------------------
+# Tests for parse_args
+# -------------------------
+def test_parse_args_supplied_times(monkeypatch, capsys):
+    """
+    parse_args should accept provided time_start and time_end and set defaults correctly.
+    We'll call parse_args with explicit time_start and time_end and check resulting attributes.
+    """
+    argv = ["--short_name", "SPL3SMP", "--version", "009",
+            "--time_start", "2025-10-01", "--time_end", "2025-10-05",
+            "--output", str(os.getcwd()),
+            "--username", "u", "--password", "p"]
+    args = download.parse_args(argv)
+
+    assert args.short_name == "SPL3SMP"
+    assert args.version == "009"
+    assert args.time_start == "2025-10-01"
+    assert args.time_end == "2025-10-05"
+    assert args.output == os.getcwd()
+    assert args.username == "u"
+    assert args.password == "p"
+
+    # Ensure parse_args printed the status line (it prints a message)
+    captured = capsys.readouterr()
+    assert "Downloading SMAP" in captured.out
+
+
+def test_parse_args_defaults_time(monkeypatch):
+    """
+    When time_start or time_end are omitted, parse_args uses get_start_date and datetime.now().
+    We'll monkeypatch get_start_date and datetime.now to known values for deterministic output.
+    """
+    # patch get_start_date to return a fixed datetime
+    monkeypatch.setattr(download, "get_start_date", lambda sn: datetime(2015, 3, 31))
+    # patch datetime.now used inside parse_args: we need to patch the datetime class in the module
+    class DummyDT:
+        @classmethod
+        def now(cls):
+            return datetime(2020, 1, 2)
+
+    monkeypatch.setattr(download, "datetime", DummyDT)
+
+    argv = ["--short_name", "SPL3SMP", "--version", "009", "--output", str(os.getcwd())]
+    args = download.parse_args(argv)
+
+    # get_start_date returns a datetime and parse_args sets args.time_start to its "%Y-%m-%d"
+    assert args.time_start == "2015-03-31"
+    # args.time_end should be DummyDT.now().strftime("%Y-%m-%d")
+    assert args.time_end == "2020-01-02"
+
+
