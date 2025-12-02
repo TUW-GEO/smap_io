@@ -24,23 +24,26 @@
 Module to read single SMAP L3 images and image stacks
 '''
 
-import os
-
 import pandas as pd
 from pygeobase.io_base import ImageBase, MultiTemporalImageBase
 from pygeobase.object_base import Image
 from pygeogrids.netcdf import load_grid
 from pynetcf.time_series import GriddedNcOrthoMultiTs
-from pynetcf.time_series import GriddedNcContiguousRaggedTs
 import pygeogrids.netcdf as ncdf
 import h5py
-import numpy as np
 from parse import *
 from datetime import timedelta
 import warnings
 from smap_io.grid import EASE36CellGrid
-from datetime import datetime
 from pynetcf.time_series import GriddedNcIndexedRaggedTs
+import os
+import re
+import shutil
+from datetime import datetime
+import numpy as np
+import xarray as xr
+
+
 
 counter = 0
 
@@ -49,26 +52,17 @@ overpass_state_AM = True
 def increment_counter(var_name):
     if var_name in globals():
         globals()[var_name] += 1
-        # print(f"'{var_name}'")
 
 
 
 def overpass_change(var_name):
     if var_name in globals():
         globals()[var_name] = not globals()[var_name]
-        # print(f"'{var_name}' updated to: {globals()[var_name]}")
     else:
         raise NameError(f"Global variable '{var_name}' is not defined.")
 
 
-# Example usage
-# overpass_state_AM = True
-# print(f"Initial state of 'overpass_state_AM': {overpass_state_AM}")
-#
-# # Toggle the variable using its name
-# toggle_global_state('overpass_state_AM')
-#
-# print(f"State of 'overpass_state_AM' after toggle: {overpass_state_AM}")
+
 
 
 class SPL3SMP_Img(ImageBase):
@@ -183,7 +177,6 @@ class SPL3SMP_Img(ImageBase):
 
             op_str = '_' + op.upper() if op else ''
             sm_field = self.overpass_templ.format(orbit=op_str)
-
             if sm_field not in ds.keys():
                 raise NameError(
                     sm_field,
@@ -193,10 +186,9 @@ class SPL3SMP_Img(ImageBase):
                 op_str = ''
             else:
                 op_str = '_pm'
-
             for parameter in self.parameters:
                 metadata = {}
-                param = ds[sm_field][parameter + op_str]
+                param = ds[sm_field][parameter+op_str]
                 data = np.flipud(param[:]).flatten()
 
                 if self.grid is not None:
@@ -289,20 +281,19 @@ class SPL3SMP_Img(ImageBase):
                 return_meta[ret_param_name] = metadata
 
         if overpass == 'BOTH':
-            print(overpass_state_AM, counter)
             if counter > 0:
                 overpass_change('overpass_state_AM')
                 increment_counter('counter')
             else:
                 increment_counter('counter')
-            print(overpass_state_AM)
-            print(ds.filename)
             keys_pm = [element + '_pm' if isinstance(element, str) else element
                        for element in self.parameters]
             keys_am = [element + '_am' if isinstance(element, str) else element
                        for element in self.parameters]
 
+
             if op == 'AM':
+
                 return_data_am = {k: return_data[k] for k in keys_am}
                 return_data_am = {self.parameters[i]: value for i, (key, value)
                                   in enumerate(return_data_am.items())}
@@ -312,7 +303,6 @@ class SPL3SMP_Img(ImageBase):
                 df_returndata = pd.DataFrame.from_dict(return_data_am)
                 df_returndata['Overpass'] = 1
             elif op == 'PM':
-
                 return_data_pm = {k: return_data[k] for k in keys_pm}
                 return_data_pm = {self.parameters[i]: value for i, (key, value)
                                   in enumerate(return_data_pm.items())}
@@ -621,6 +611,265 @@ class SMAPL3_V9Reader(GriddedNcIndexedRaggedTs):
                 ts = ts.sort_index()
         assert ts is not None, "No data read"
         return ts
+
+
+
+
+
+def organize_smap_files(root_dir, start_date=None, end_date=None, file_pattern=None):
+    """
+    Scans all subdirectories under `root_dir` for files matching:
+        SMAP_L3_SM_P_YYYYMMDD_R#####_###.h5
+    Creates a 'temp' folder in `root_dir` containing subfolders named by date (YYYY.MM.DD),
+    and copies each file into its respective date folder.
+    Also copies 'grid.nc' from the root directory into 'temp'.
+
+    Optional:
+        start_date (str): Include files on or after this date, format 'YYYY-MM-DD'.
+        end_date (str): Include files on or before this date, format 'YYYY-MM-DD'.
+
+    Example:
+        organize_smap_files("/path/to/data", start_date="2025-01-01", end_date="2025-12-31")
+        SMAP_L3_SM_P_20251018_R19240_002.h5 → root_dir/temp/2025.10.18/
+        grid.nc → root_dir/temp/grid.nc
+    """
+    # Create 'temp' directory in root
+    temp_dir = os.path.join(root_dir, "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Regex for filenames like SMAP_L3_SM_P_20251018_R19240_002.h5
+    if file_pattern is None:
+        smap_pattern = re.compile(r"^SMAP_L3_SM_P_(\d{8})_R\d{5}_\d{3}\.h5$")
+    else:
+        smap_pattern = re.compile(file_pattern)
+
+    # Convert start and end dates to datetime objects (if provided)
+    def parse_date(date_str):
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    if type(start_date) == str:
+        start_dt = parse_date(start_date) if start_date else None
+        end_dt = parse_date(end_date) if end_date else None
+    else:
+        start_dt = start_date
+        end_dt = end_date
+
+    copied_files = 0
+
+    # Walk through all subdirectories
+    for dirpath, _, filenames in os.walk(root_dir):
+        # Skip the 'temp' directory to avoid recursive copying
+        if dirpath.startswith(temp_dir):
+            continue
+
+        for filename in filenames:
+            match = smap_pattern.match(filename)
+            if match:
+                date_str = match.group(1)  # 'YYYYMMDD'
+                file_date = datetime.strptime(date_str, "%Y%m%d")
+
+                # Apply inclusive date range filtering
+                if start_dt and file_date < start_dt:
+                    continue
+                if end_dt and file_date > end_dt:
+                    continue
+
+                # Create destination folder by date
+                folder_name = f"{date_str[:4]}.{date_str[4:6]}.{date_str[6:8]}"
+                target_folder = os.path.join(temp_dir, folder_name)
+                os.makedirs(target_folder, exist_ok=True)
+
+                source_file = os.path.join(dirpath, filename)
+                dest_file = os.path.join(target_folder, filename)
+
+                shutil.copy2(source_file, dest_file)  # copy file with metadata
+                copied_files += 1
+                print(f"Copied: {filename} → {target_folder}")
+
+    # Copy grid.nc if it exists in root_dir
+    grid_path = os.path.join(root_dir, "grid.nc")
+    if os.path.isfile(grid_path):
+        shutil.copy2(grid_path, os.path.join(temp_dir, "grid.nc"))
+        print(f"\nCopied: grid.nc → {temp_dir}")
+    else:
+        print("\n⚠️ grid.nc not found in the root directory.")
+
+    if copied_files == 0:
+        print("\n⚠️ No SMAP files matched the given date range.")
+    else:
+        print(f"\n✅ {copied_files} SMAP files organized in: {temp_dir}")
+
+
+
+
+
+
+
+def get_max_time_from_netcdfs(folder_path: str, time_var: str = "time") -> float:
+    """
+    Find the overall maximum valid value for the 'time' variable across
+    all NetCDF files in a folder.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing NetCDF files.
+    time_var : str, optional
+        Name of the time variable to extract (default is 'time').
+
+    Returns
+    -------
+    float
+        The maximum valid (non-NaN, finite) value of the time variable
+        across all files. Returns None if no valid time values are found.
+    """
+    max_time = None
+
+    # Collect all NetCDF files in the directory
+    nc_files = [
+        os.path.join(folder_path, f)
+        for f in os.listdir(folder_path)
+        if f.endswith((".nc", ".nc4", ".cdf"))
+    ]
+
+    if not nc_files:
+        print("No NetCDF files found in the given folder.")
+        return None
+
+    for f in nc_files:
+        try:
+            with xr.open_dataset(f) as ds:
+                print(f"Reading {f}...")
+                if time_var not in ds:
+                    continue
+
+                # Extract the time variable and convert to a NumPy array
+                time_values = ds[time_var].values
+
+                # Mask invalid or non-finite entries
+                time_values = np.asarray(time_values)
+                time_values = time_values[np.isfinite(time_values)]
+
+                if time_values.size > 0:
+                    file_max = np.max(time_values)
+                    if max_time is None or file_max > max_time:
+                        max_time = file_max
+        except Exception as e:
+            print(f"Warning: Could not read {f} ({e})")
+
+    return max_time
+
+def get_min_time_from_netcdfs(folder_path: str, time_var: str = "time") -> float:
+    """
+    Find the overall maximum valid value for the 'time' variable across
+    all NetCDF files in a folder.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing NetCDF files.
+    time_var : str, optional
+        Name of the time variable to extract (default is 'time').
+
+    Returns
+    -------
+    float
+        The maximum valid (non-NaN, finite) value of the time variable
+        across all files. Returns None if no valid time values are found.
+    """
+    min_time = None
+
+    # Collect all NetCDF files in the directory
+    nc_files = [
+        os.path.join(folder_path, f)
+        for f in os.listdir(folder_path)
+        if f.endswith((".nc", ".nc4", ".cdf"))
+    ]
+
+    if not nc_files:
+        print("No NetCDF files found in the given folder.")
+        return None
+
+    for f in nc_files:
+        try:
+            with xr.open_dataset(f) as ds:
+                print(f"Reading {f}...")
+                if time_var not in ds:
+                    continue
+
+                # Extract the time variable and convert to a NumPy array
+                time_values = ds[time_var].values
+
+                # Mask invalid or non-finite entries
+                time_values = np.asarray(time_values)
+                time_values = time_values[np.isfinite(time_values)]
+
+                if time_values.size > 0:
+                    file_min = np.min(time_values)
+                    if min_time is None or file_min > max_time:
+                        max_time = file_min
+        except Exception as e:
+            print(f"Warning: Could not read {f} ({e})")
+
+    return min_time
+
+
+
+def merge_smap_folders(folder1, folder2, output_folder, time_key="time"):
+    """
+    Merge SMAP L3 NetCDF files from two folders by matching filenames.
+    Assumes all files with the same name have identical locations/coordinates,
+    and only the time dimension differs.
+
+    After successfully merging, deletes the original two files.
+
+    Parameters:
+        folder1 (str): Path to the first folder of NetCDF files.
+        folder2 (str): Path to the second folder of NetCDF files.
+        output_folder (str): Path to save merged NetCDF files.
+        time_key (str): Name of the time dimension (default: "time").
+    """
+    os.makedirs(output_folder, exist_ok=True)
+    print(f"Output folder: {output_folder}")
+
+    # List files in both folders
+    files1 = {f for f in os.listdir(folder1) if f.endswith(".nc")}
+    files2 = {f for f in os.listdir(folder2) if f.endswith(".nc")}
+
+    # Find matching files
+    common_files = files1 & files2
+    if not common_files:
+        print("No matching files found in the two folders.")
+        return
+
+    for fname in sorted(common_files):
+        path1 = os.path.join(folder1, fname)
+        path2 = os.path.join(folder2, fname)
+        output_path = os.path.join(output_folder, fname)
+
+        print(f"Merging: {fname}")
+        try:
+            # Open and merge along time
+            ds1 = xr.open_dataset(path1)
+            ds2 = xr.open_dataset(path2)
+            merged = xr.concat([ds1, ds2], dim=time_key)
+
+            # Save merged file
+            merged.to_netcdf(output_path)
+            print(f"✅ Merged file saved: {output_path}")
+
+            # Close datasets before deleting
+            ds1.close()
+            ds2.close()
+            merged.close()
+
+            # Delete original files
+            os.remove(path1)
+            os.remove(path2)
+            print(f"🗑️ Deleted original files:\n - {path1}\n - {path2}")
+
+        except Exception as e:
+            print(f"❌ Failed to merge {fname}: {e}")
+
 
 
 

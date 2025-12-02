@@ -27,13 +27,92 @@ time series format using the repurpose package
 '''
 
 import os
+import shutil
 import sys
 import argparse
 from datetime import datetime
 
+import yaml
 from repurpose.img2ts import Img2Ts
 from smap_io.grid import EASE36CellGrid
-from smap_io.interface import SPL3SMP_Ds
+from smap_io.interface import SPL3SMP_Ds, organize_smap_files
+from smap_io.misc import get_first_last_day_images, read_yaml_from_folder
+import pandas as pd
+
+
+def extend_ts(img_path, ts_path):
+    """
+    Append new image data to an existing time series record.
+    This will use the last_day from summary.yml in the time series
+    directory to decide which date the update should start from and
+    the available image directories to decide how many images can be
+    appended.
+
+    Parameters
+    ----------
+    img_path: str
+        Path where the annual folders containing downloaded SMOS L2 images
+        are stored
+    ts_path: str
+        Path where the converted time series (initially created using the
+        reshuffle / swath2ts command) are stored.
+
+    """
+
+    out_file = os.path.join(ts_path, f"overview.yml")
+    if not os.path.isfile(out_file):
+        raise ValueError("No overview.yml found in the time series directory."
+                         "Please use reshuffle / swath2ts for initial time "
+                         f"series setup or provide overview.yml in {ts_path}.")
+
+    props = read_yaml_from_folder(ts_path)
+    startdate = pd.to_datetime(props['last_day']).to_pydatetime()
+    _, last_day = get_first_last_day_images(img_path)
+
+    if startdate is None or last_day is None:
+        raise ValueError("No start and/or end date provided.")
+
+    startdate = pd.to_datetime(startdate).to_pydatetime()
+    last_day = pd.to_datetime(last_day).to_pydatetime()
+    organize_smap_files(img_path, start_date=startdate, end_date=last_day)
+    img_path_temp = os.path.join(img_path, "temp")
+    if startdate < last_day:
+
+        try:
+            reshuffle(
+                img_path_temp,
+                ts_path,
+                startdate,
+                last_day,
+                props['parameters'],
+                time_key="tb_time_seconds",
+                grid=EASE36CellGrid(only_land=True),
+                overpass="BOTH",
+                var_overpass_str=True)
+
+            props[
+                'comment'] = ("DO NOT CHANGE THIS FILE MANUALLY! Required for "
+                              "data update.")
+            props['last_day'] = str(last_day)
+            props['last_update'] = str(datetime.now())
+
+            # Ensure 'comment' is the first key when writing
+            ordered_props = {
+                'comment': props['comment'],
+                'last_day': props['last_day'],
+                'last_update': props['last_update'],
+                # add any other props here in desired order
+            }
+
+            with open(out_file, 'w') as f:
+                yaml.dump(ordered_props, f, default_flow_style=False,
+                          sort_keys=False)
+        except Exception as e:
+            pass
+
+        shutil.rmtree(img_path_temp)
+    else:
+        print(f"No extension required From: {startdate} To: {last_day}")
 
 
 def reshuffle(input_root,
@@ -90,9 +169,11 @@ def reshuffle(input_root,
         os.makedirs(outputpath)
 
     # get time series attributes from first day of data.
+    print(startdate)
     data = input_dataset.read(startdate)
 
-    # Define the input grid, applying user-specified subgrid or using the default
+    # Define the input grid, applying user-specified subgrid or using the
+    # default
     input_grid = ds_kwargs['grid'].cut() if \
         isinstance(ds_kwargs['grid'], EASE36CellGrid) else ds_kwargs['grid']
 
@@ -128,8 +209,6 @@ def str2bool(val):
         return True
     else:
         return False
-
-
 
 
 def parse_args(args):
@@ -168,7 +247,7 @@ def parse_args(args):
         help=("Parameters to convert as strings as in the downloaded file"
               "e.g. soil_moisture soil_moisture_error"))
     parser.add_argument(
-        "time_key",
+        "--time_key",
         metavar="time_key",
         default="tb_time_seconds",
         type=str,
@@ -239,26 +318,16 @@ def parse_args(args):
 def main(args):
     args = parse_args(args)
 
-    grid = EASE36CellGrid(
-        bbox=args.bbox if 'bbox' in args else None,
-        only_land=True if args.land_points else False)
+    grid = EASE36CellGrid(only_land=True)
 
-    reshuffle(
-        args.dataset_root,
-        args.timeseries_root,
-        args.start,
-        args.end,
-        args.parameters,
-        # imgbuffer=args.imgbuffer,
-        # args.use_all_elements_per_folder,
-        time_key=args.time_key,
-        grid=grid,
-        overpass=None if args.overpass in ['False', 'false', 'none', 'None']
-        else args.overpass,
-        var_overpass_str=args.var_overpass_str,
-        crid=args.crid
-        )
-
+    reshuffle(args.dataset_root,
+              args.timeseries_root,
+              args.start,
+              args.end,
+              args.parameters,
+              time_key=args.time_key,
+              grid=grid,
+              overpass=args.overpass, )
 
 def run():
     main(sys.argv[1:])

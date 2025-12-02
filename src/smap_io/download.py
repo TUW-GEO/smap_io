@@ -1,468 +1,535 @@
-"""
-Download SMAP.
-"""
-import os
-import sys
-import glob
+# -*- coding: utf-8 -*-
+# The MIT License (MIT)
+#
+# Copyright (c) 2016, TU Wien
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# ----------------------------------------------------------------------------
+from __future__ import print_function
 import argparse
-from functools import partial
-
-import trollsift.parser as parser
+import base64
+import itertools
+import json
+import math
+import netrc
+import os
+import os.path
+import ssl
+import sys
+import time
 from datetime import datetime
-from datedown.interface import mkdate
-from datedown.dates import daily
-from datedown.urlcreator import create_dt_url
-from datedown.fname_creator import create_dt_fpath
-from datedown.interface import download_by_dt
-import subprocess
-import tempfile
-from multiprocessing import Pool
+from getpass import getpass
+import trollsift.parser as parser
+import glob
 
 
-def dates_empty_folders(img_dir, crid=None):
-    """
-    Checks the download directory for date with empty folders.
+try:
+    from urllib.parse import urlparse
+    from urllib.request import urlopen, Request, build_opener, \
+        HTTPCookieProcessor
+    from urllib.error import HTTPError, URLError
+except ImportError:
+    from urlparse import urlparse
+    from urllib2 import urlopen, Request, build_opener, HTTPCookieProcessor, \
+        HTTPError, URLError
 
-    Parameters
-    ----------
-    img_dir : str
-        Directory to count files and folders in
-    crid : int, optional (default:None)
-        If crid is passed, check if any file in each dir contains the crid in
-        the name, else check if there is any file at all.
-    Returns
-    -------
-    miss_dates : list
-        Dates where a folder exists but no file is inside
-    """
+# ------------------ Default Parameters ------------------
+short_name = "SPL3SMP"
+version = "009"
+time_start = "2025-10-01"
+time_end = "2025-10-30"
+bounding_box = ""
+polygon = ""
+filename_filter = ""
+url_list = []
 
-    missing = []
-    for dir, subdirs, files in os.walk(img_dir):
-        if len(subdirs) != 0:
-            continue
-        if crid:
-            cont = [str(crid) in afile for afile in files]
-            if not any(cont):
-                missing.append(dir)
+# Default download folder (can be overridden with --output)
+download_dir = os.getcwd()
+
+CMR_URL = "https://cmr.earthdata.nasa.gov"
+URS_URL = "https://urs.earthdata.nasa.gov"
+CMR_PAGE_SIZE = 2000
+CMR_FILE_URL = (
+    "{0}/search/granules.json?"
+    "&sort_key[]=start_date&sort_key[]=producer_granule_id"
+    "&page_size={1}".format(CMR_URL, CMR_PAGE_SIZE)
+)
+CMR_COLLECTIONS_URL = "{0}/search/collections.json?".format(CMR_URL)
+FILE_DOWNLOAD_MAX_RETRIES = 3
+
+
+# ------------------ Login Functions ------------------
+def get_username():
+    try:
+        do_input = raw_input  # Python 2 compatibility
+    except NameError:
+        do_input = input
+    return do_input(
+        "Earthdata username (or press Return to use a bearer token): ")
+
+
+def get_password():
+    password = ""
+    while not password:
+        password = getpass("password: ")
+    return password
+
+
+
+
+
+# ------------------ Query Building ------------------
+def build_version_query_params(version):
+    desired_pad_length = 3
+    if len(version) > desired_pad_length:
+        print('Version string too long: "{0}"'.format(version))
+        quit()
+    version = str(int(version))  # Strip leading zeros
+    query_params = ""
+    while len(version) <= desired_pad_length:
+        padded_version = version.zfill(desired_pad_length)
+        query_params += "&version={0}".format(padded_version)
+        desired_pad_length -= 1
+    return query_params
+
+
+def filter_add_wildcards(f):
+    if not f.startswith("*"):
+        f = "*" + f
+    if not f.endswith("*"):
+        f = f + "*"
+    return f
+
+
+def build_filename_filter(filename_filter):
+    filters = filename_filter.split(",")
+    result = "&options[producer_granule_id][pattern]=true"
+    for f in filters:
+        result += "&producer_granule_id[]=" + filter_add_wildcards(f)
+    return result
+
+
+def build_query_params_str(short_name, version, time_start="", time_end="",
+                           bounding_box=None, polygon=None,
+                           filename_filter=None, provider=None):
+    params = "&short_name={0}".format(short_name)
+    params += build_version_query_params(version)
+    if time_start or time_end:
+        params += "&temporal[]={0},{1}".format(time_start, time_end)
+    if polygon:
+        params += "&polygon={0}".format(polygon)
+    elif bounding_box:
+        params += "&bounding_box={0}".format(bounding_box)
+    if filename_filter:
+        params += build_filename_filter(filename_filter)
+    if provider:
+        params += "&provider={0}".format(provider)
+    return params
+
+
+def build_cmr_query_url(short_name, version, time_start, time_end,
+                        bounding_box=None, polygon=None, filename_filter=None,
+                        provider=None):
+    params = build_query_params_str(short_name, version, time_start, time_end,
+                                    bounding_box, polygon, filename_filter,
+                                    provider)
+    return CMR_FILE_URL + params
+
+
+# ------------------ Download Utilities ------------------
+def get_speed(time_elapsed, chunk_size):
+    if time_elapsed <= 0:
+        return ""
+    speed = chunk_size / time_elapsed
+    if speed <= 0:
+        speed = 1
+    size_name = ("", "k", "M", "G", "T", "P", "E", "Z", "Y")
+    i = int(math.floor(math.log(speed, 1000)))
+    p = math.pow(1000, i)
+    return "{0:.1f}{1}B/s".format(speed / p, size_name[i])
+
+
+def output_progress(count, total, status="", bar_len=60):
+    if total <= 0:
+        return
+    fraction = min(max(count / float(total), 0), 1)
+    filled_len = int(round(bar_len * fraction))
+    percents = int(round(100.0 * fraction))
+    bar = "=" * filled_len + " " * (bar_len - filled_len)
+    fmt = "  [{0}] {1:3d}%  {2}   ".format(bar, percents, status)
+    print("\b" * (len(fmt) + 4), end="")
+    sys.stdout.write(fmt)
+    sys.stdout.flush()
+
+
+def cmr_read_in_chunks(file_object, chunk_size=1024 * 1024):
+    while True:
+        data = file_object.read(chunk_size)
+        if not data:
+            break
+        yield data
+
+
+def get_login_response(url, credentials, token):
+    opener = build_opener(HTTPCookieProcessor())
+    req = Request(url)
+    if token:
+        req.add_header("Authorization", "Bearer {0}".format(token))
+    elif credentials:
+        try:
+            response = opener.open(req)
+            url = response.url
+        except HTTPError:
+            pass
+        req = Request(url)
+        req.add_header("Authorization", "Basic {0}".format(credentials))
+    try:
+        response = opener.open(req)
+    except HTTPError as e:
+        err = "HTTP error {0}, {1}".format(e.code, e.reason)
+        if "Unauthorized" in e.reason:
+            if token:
+                err += ": Check your bearer token"
+            else:
+                err += ": Check your username and password"
+            print(err)
+            sys.exit(1)
+        raise
+    except Exception as e:
+        print("Error{0}: {1}".format(type(e), str(e)))
+        sys.exit(1)
+    return response
+
+
+
+
+
+def cmr_download(urls, username, password, force=False, quiet=False):
+    if not urls:
+        return
+    url_count = len(urls)
+    if not quiet:
+        print("Downloading {0} files...".format(url_count))
+    credentials = None
+    token = None
+
+    for index, url in enumerate(urls, start=1):
+        if not credentials and not token:
+            p = urlparse(url)
+            if p.scheme == "https":
+                # credentials, token = get_login_credentials()
+                credentials = "{0}:{1}".format(username, password)
+                credentials = base64.b64encode(
+                    credentials.encode("ascii")).decode("ascii")
+
+        filename = url.split("/")[-1]
+
+        date_str = filename.split('_')[4]  # '20250701'
+        file_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+        download_dir_sub_path = os.path.join(download_dir,
+                                             file_date.replace("-", "."))
+        print(filename)
+        if not os.path.exists(download_dir_sub_path):
+            os.makedirs(download_dir_sub_path)
+            filepath = os.path.join(download_dir, download_dir_sub_path,
+                                    filename)
         else:
-            cont = True if len(files) > 0 else False
-            if not cont:
-                missing.append(dir)
+            filepath = os.path.join(download_dir, download_dir_sub_path,
+                                    filename)
 
-    miss_dates = [
-        datetime.strptime(
-            os.path.basename(os.path.normpath(miss_path)), '%Y.%m.%d')
-        for miss_path in missing
-    ]
+        print(filepath)
+        if not quiet:
+            print("{0}/{1}: {2}".format(str(index).zfill(len(str(url_count))),
+                                        url_count, filename))
 
-    return sorted(miss_dates)
-
-
-def wget_download(url,
-                  target,
-                  username=None,
-                  password=None,
-                  cookie_file=None,
-                  recursive=False,
-                  filetypes=None,
-                  robots_off=False):
-    """
-    copied from datedown and modified.
-
-    Download a url using wget.
-    Retry as often as necessary and store cookies if
-    authentification is necessary.
-
-    Parameters
-    ----------
-    url: string
-        URL to download
-    target: string
-        path on local filesystem where to store the downloaded file
-    username: string, optional
-        username
-    password: string, optional
-        password
-    cookie_file: string, optional
-        file where to store cookies
-    recursive: boolean, optional
-        If set then no exact filenames can be given.
-        The data will then be downloaded recursively and stored in the target folder.
-    filetypes: list, optional
-        list of file extension to download, any others will no be downloaded
-    robots_off : bool
-        Don't apply server robots rules.
-    """
-    cmd_list = ['wget', url, '--retry-connrefused', '--no-check-certificate']
-
-    cmd_list = cmd_list + ['--auth-no-challenge', 'on']
-
-    if recursive:
-        cmd_list = cmd_list + ['-P', target]
-        cmd_list = cmd_list + ['-nd']
-        cmd_list = cmd_list + ['-np']
-        cmd_list = cmd_list + ['-r']
-    else:
-        cmd_list = cmd_list + ['-O', target]
-
-    if robots_off:
-        cmd_list = cmd_list + ['-e', 'robots=off']
-
-    if filetypes is not None:
-        cmd_list = cmd_list + ['-A ' + ','.join(filetypes)]
-
-    target_path = os.path.split(target)[0]
-    if not os.path.exists(target_path):
-        os.makedirs(target_path)
-
-    if username is not None:
-        cmd_list.append('--user={}'.format(username))
-    if password is not None:
-        cmd_list.append('--password={}'.format(password))
-    if cookie_file is not None:
-        cmd_list = cmd_list + [
-            '--load-cookies', cookie_file, '--save-cookies', cookie_file,
-            '--keep-session-cookies'
-        ]
-
-    subprocess.call(" ".join(cmd_list), shell=True)
-
-
-def check_dl(url_target):
-    '''
-    Check if the folder exists and is not empty (False if not)
-    '''
-    return os.path.isdir(url_target) and not len(os.listdir(url_target)) == 0
-
-
-def wget_map_download(url_target,
-                      username=None,
-                      password=None,
-                      cookie_file=None,
-                      recursive=False,
-                      filetypes=None,
-                      robots_off=False):
-    """
-    copied from datedown and modified.
-
-    variant of the function that only takes one argument.
-    Otherwise map_async of the multiprocessing module can not work with the function.
-
-    Parameters
-    ----------
-    url_target: list
-        first element the url, second the target string
-    username: string, optional
-        username
-    password: string, optional
-        password
-    cookie_file: string, optional
-        file where to store cookies
-    recursive: boolean, optional
-        If set then no exact filenames can be given.
-        The data will then be downloaded recursively and stored in the target folder.
-    filetypes: list, optional
-        list of file extension to download, any others will no be downloaded
-    robots_off : bool
-        Don't apply server robots rules.
-    """
-
-    # repeats the download once in cases where no files are downloaded.
-    i = 0
-    while (not check_dl(url_target[1])) and i < 5:
-        wget_download(
-            url_target[0],
-            url_target[1],
-            username=username,
-            password=password,
-            cookie_file=cookie_file,
-            recursive=recursive,
-            filetypes=filetypes,
-            robots_off=robots_off)
-        i += 1
-
-
-def download(urls,
-             targets,
-             num_proc=1,
-             username=None,
-             password=None,
-             recursive=False,
-             filetypes=None,
-             robots_off=False):
-    """
-    copied from datedown.
-
-    Download the urls and store them at the target filenames.
-
-    Parameters
-    ----------
-    urls: iterable
-        iterable over url strings
-    targets: iterable
-        paths where to store the files
-    num_proc: int, optional
-        Number of parallel downloads to start
-    username: string, optional
-        Username to use for login
-    password: string, optional
-        Password to use for login
-    recursive: boolean, optional
-        If set then no exact filenames can be given.
-        The data will then be downloaded recursively and stored in the target folder.
-    filetypes: list, optional
-        list of file extension to download, any others will no be downloaded
-    robots_off : bool
-        Don't apply server robots rules.
-    """
-
-    def update(r):
-        return
-
-    def error(e):
-        return
-
-    cf = tempfile.NamedTemporaryFile()
-    cookie_file = cf.name
-    cf.close()
-
-    args = []
-    for u, t in zip(urls, targets):
-        args.append([[u, t], username, password, cookie_file, recursive,
-                     filetypes, robots_off])
-
-    if num_proc == 1:
-        for arg in args:
+        for attempt in range(1, FILE_DOWNLOAD_MAX_RETRIES + 1):
+            if not quiet and attempt > 1:
+                print("Retrying download of {0}".format(url))
             try:
-                r = wget_map_download(*arg)
-                update(r)
-            except Exception as e:
-                error(e)
-    else:
-        with Pool(num_proc) as pool:
-            for arg in args:
-                pool.apply_async(
-                    wget_map_download,
-                    arg,
-                    callback=update,
-                    error_callback=error,
-                )
-            pool.close()
-            pool.join()
-
-
-def folder_get_first_last(
-        root,
-        fmt="SMAP_L3_SM_P_{time:%Y%m%d}_R{orbit:05d}_{proc_number:03d}.h5",
-        subpaths=['{:%Y.%m.%d}']):
-    """
-    Get first and last product which exists under the root folder.
-
-    Parameters
-    ----------
-    root: string
-        Root folder on local filesystem
-    fmt: string, optional
-        formatting string
-    subpaths: list, optional
-        format of the subdirectories under root.
-
-    Returns
-    -------
-    start: datetime.datetime
-        First found product datetime
-    end: datetime.datetime
-        Last found product datetime
-    """
-    start = None
-    end = None
-    first_folder = get_first_folder(root, subpaths)
-    last_folder = get_last_folder(root, subpaths)
-
-    if first_folder is not None:
-        files = sorted(
-            glob.glob(os.path.join(first_folder, parser.globify(fmt))))
-        data = parser.parse(fmt, os.path.split(files[0])[1])
-        start = data['time']
-
-    if last_folder is not None:
-        files = sorted(
-            glob.glob(os.path.join(last_folder, parser.globify(fmt))))
-        data = parser.parse(fmt, os.path.split(files[-1])[1])
-        end = data['time']
-
-    return start, end
-
-
-def get_last_folder(root, subpaths):
-    directory = root
-    for level, subpath in enumerate(subpaths):
-        last_dir = get_last_formatted_dir_in_dir(directory, subpath)
-        if last_dir is None:
-            directory = None
-            break
-        directory = os.path.join(directory, last_dir)
-    return directory
-
-
-def get_first_folder(root, subpaths):
-    directory = root
-    for level, subpath in enumerate(subpaths):
-        last_dir = get_first_formatted_dir_in_dir(directory, subpath)
-        if last_dir is None:
-            directory = None
-            break
-        directory = os.path.join(directory, last_dir)
-    return directory
-
-
-def get_last_formatted_dir_in_dir(folder, fmt):
-    """
-    Get the (alphabetically) last directory in a directory
-    which can be formatted according to fmt.
-    """
-    last_elem = None
-    root_elements = sorted(os.listdir(folder))
-    for root_element in root_elements[::-1]:
-        if os.path.isdir(os.path.join(folder, root_element)):
-            if parser.validate(fmt, root_element):
-                last_elem = root_element
+                response = get_login_response(url, credentials, token)
+                length = int(response.headers["content-length"])
+                try:
+                    if not force and length == os.path.getsize(filepath):
+                        if not quiet:
+                            print("  File exists, skipping")
+                        break
+                except OSError:
+                    pass
+                count = 0
+                chunk_size = min(max(length, 1), 1024 * 1024)
+                max_chunks = int(math.ceil(length / chunk_size))
+                time_initial = time.time()
+                with open(filepath, "wb") as out_file:
+                    for data in cmr_read_in_chunks(response,
+                                                   chunk_size=chunk_size):
+                        out_file.write(data)
+                        if not quiet:
+                            count += 1
+                            elapsed = time.time() - time_initial
+                            speed = get_speed(elapsed, count * chunk_size)
+                            output_progress(count, max_chunks, status=speed)
+                if not quiet:
+                    print()
                 break
-    return last_elem
+            except (HTTPError, URLError, IOError) as e:
+                print(
+                    "Error downloading file {0}: {1}".format(filename, str(e)))
+                if attempt == FILE_DOWNLOAD_MAX_RETRIES:
+                    print(
+                        "Failed to download file {0} after {1} "
+                        "attempts.".format(
+                            filename, FILE_DOWNLOAD_MAX_RETRIES))
+                    sys.exit(1)
+
+                # ------------------ CMR URL Filtering ------------------
 
 
-def get_first_formatted_dir_in_dir(folder, fmt):
-    """
-    Get the (alphabetically) first directory in a directory
-    which can be formatted according to fmt.
-    """
-    first_elem = None
-    root_elements = sorted(os.listdir(folder))
-    for root_element in root_elements:
-        if os.path.isdir(os.path.join(folder, root_element)):
-            if parser.validate(fmt, root_element):
-                first_elem = root_element
-                break
-    return first_elem
+def cmr_filter_urls(search_results):
+    if "feed" not in search_results or "entry" not in \
+            search_results["feed"]:
+        return []
+    entries = [e["links"] for e in search_results["feed"]["entry"]
+               if "links" in e]
+    links = list(itertools.chain(*entries))
+    urls = []
+    unique_filenames = set()
+    for link in links:
+        if "href" not in link or (
+                "inherited" in link and link["inherited"]):
+            continue
+        if "rel" in link and "data#" not in link["rel"]:
+            continue
+        if "title" in link and "opendap" in link["title"].lower():
+            continue
+        filename = link["href"].split("/")[-1]
+        if ("metadata#" in link.get("rel", "") and (
+                filename.endswith(
+                    ".dmrpp") or filename == "s3credentials")):
+            continue
+        if filename in unique_filenames:
+            continue
+        unique_filenames.add(filename)
+        urls.append(link["href"])
+    return urls
+
+    # ------------------ Provider Selection ------------------
 
 
-def get_start_date(product):
-    if product.startswith("SPL3SMP"):
+def check_provider_for_collection(short_name, version, provider):
+    query_params = build_query_params_str(short_name=short_name,
+                                          version=version,
+                                          provider=provider)
+    cmr_query_url = CMR_COLLECTIONS_URL + query_params
+    try:
+        response = urlopen(Request(cmr_query_url))
+    except Exception as e:
+        print("Error: " + str(e))
+        sys.exit(1)
+    search_page = json.loads(response.read().decode("utf-8"))
+    return bool(search_page.get("feed", {}).get("entry"))
+
+
+def get_provider_for_collection(short_name, version):
+    cloud_provider = "NSIDC_CPRD"
+    if check_provider_for_collection(short_name, version,
+                                     cloud_provider):
+        return cloud_provider
+    ecs_provider = "NSIDC_ECS"
+    if check_provider_for_collection(short_name, version,
+                                     ecs_provider):
+        return ecs_provider
+    raise RuntimeError(
+        "No collection found for short_name {} and version {}".format(
+            short_name, version))
+
+    # ------------------ CMR Search ------------------
+
+
+def cmr_search(short_name, version, time_start, time_end,
+               bounding_box="", polygon="", filename_filter="",
+               quiet=False):
+    provider = get_provider_for_collection(short_name, version)
+    cmr_query_url = build_cmr_query_url(provider=provider,
+                                        short_name=short_name,
+                                        version=version,
+                                        time_start=time_start,
+                                        time_end=time_end,
+                                        bounding_box=bounding_box,
+                                        polygon=polygon,
+                                        filename_filter=filename_filter)
+    if not quiet:
+        print("Querying for data:\n\t{0}\n".format(cmr_query_url))
+
+    cmr_paging_header = "cmr-search-after"
+    cmr_page_id = None
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    urls = []
+    hits = 0
+    while True:
+        req = Request(cmr_query_url)
+        if cmr_page_id:
+            req.add_header(cmr_paging_header, cmr_page_id)
+        try:
+            response = urlopen(req, context=ctx)
+        except Exception as e:
+            print("Error: " + str(e))
+            sys.exit(1)
+
+        headers = {k.lower(): v for k, v in
+                   dict(response.info()).items()}
+        if not cmr_page_id:
+            hits = int(headers.get("cmr-hits", 0))
+            if not quiet:
+                print("Found {0} matches.".format(
+                    hits) if hits > 0 else "Found no matches.")
+
+        cmr_page_id = headers.get(cmr_paging_header)
+        search_page = json.loads(response.read().decode("utf-8"))
+        url_scroll_results = cmr_filter_urls(search_page)
+        if not url_scroll_results:
+            break
+        if not quiet and hits > CMR_PAGE_SIZE:
+            print(".", end="")
+            sys.stdout.flush()
+        urls += url_scroll_results
+    if not quiet and hits > CMR_PAGE_SIZE:
+        print()
+    return urls
+
+def get_start_date(short_name):
+    if short_name.startswith("SPL3SMP"):
         return datetime(2015, 3, 31, 0)
 
 
 def parse_args(args):
-    """
-    Parse command line parameters for recursive download
-
-    :param args: command line parameters as list of strings
-    :return: command line parameters as :obj:`argparse.Namespace`
-    """
+    # Use argparse instead of getopt for argument parsing
     parser = argparse.ArgumentParser(
-        description="Download SMAP data. Register at https://urs.earthdata.nasa.gov/ first."
+        description="NSIDC Data Download Script",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument(
-        "localroot", help='Root of local filesystem where the data is stored.')
-    parser.add_argument(
-        "-s",
-        "--start",
-        type=mkdate,
-        help=(
-            "Startdate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-            " If not given then the target folder is scanned for a start date."
-            " If no data is found there then the first available date of the product is used."
-        ))
-    parser.add_argument(
-        "-e",
-        "--end",
-        type=mkdate,
-        help=("Enddate. Either in format YYYY-MM-DD or YYYY-MM-DDTHH:MM."
-              " If not given then the current date is used."))
-    parser.add_argument(
-        "--product",
-        type=str,
-        default="SPL3SMP.008",
-        help='SMAP product to download. (default: SPL3SMP.008).'
-        ' See also https://n5eil01u.ecs.nsidc.org/SMAP/ ')
     parser.add_argument(
         "--filetypes",
         nargs="*",
-        default=["h5", "nc"],
+        default=["h5"],
         help="File types (extensions) to download. Files with"
-        "other extensions are ignored. "
-        "Default is equivalent to --filetypes h5 nc")
-    parser.add_argument("--username", help='Username to use for download.')
-    parser.add_argument("--password", help='password to use for download.')
+             "other extensions are ignored. "
+             "Default is equivalent to --filetypes h5 nc")
+    # Add arguments
     parser.add_argument(
-        "--n_proc",
-        default=1,
-        type=int,
-        help='Number of parallel processes to use for downloading.')
+        "--short_name", type=str, default="SPL3SMP",
+        help="Short name of the dataset to download (e.g., SPL3SMP)."
+    )
+    parser.add_argument(
+        "--version", type=str, default="009",
+        help="Version of the dataset (e.g., 009)."
+    )
+    parser.add_argument(
+        "--time_start", type=str, required=False,
+        help="Start time for the dataset query (e.g., 2025-10-01)."
+    )
+    parser.add_argument(
+        "--time_end", type=str, required=False,
+        help="End time for the dataset query (e.g., 2025-10-30)."
+    )
+    parser.add_argument(
+        "--username", type=str,
+        help="Earthdata username for authentication."
+    )
+    parser.add_argument(
+        "--password", type=str,
+        help="Earthdata password for authentication."
+    )
+    parser.add_argument(
+        "--output", "-o", type=str, default=os.getcwd(),
+        help="Folder where downloaded files will be saved."
+    )
+    parser.add_argument(
+        "--force", "-f", action="store_true", default=False,
+        help="Force re-download of files even if they already exist."
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", default=False,
+        help="Suppress verbose output."
+    )
+
+    # Parse the arguments
     args = parser.parse_args(args)
-    # set defaults that can not be handled by argparse
+    d = 1
+    if args.time_start is None:
+        args.time_start = get_start_date(args.short_name).strftime("%Y-%m-%d")
 
-    if args.start is None or args.end is None:
-        first, last = folder_get_first_last(args.localroot)
-        if args.start is None:
-            if last is None:
-                args.start = get_start_date(args.product)
-            else:
-                args.start = last
-        if args.end is None:
-            args.end = datetime.now()
-
-    args.urlroot = 'https://n5eil01u.ecs.nsidc.org'
-    args.urlsubdirs = ['SMAP', args.product, '%Y.%m.%d']
-    args.localsubdirs = ['%Y.%m.%d']
+    if args.time_end is None:
+        args.time_end = datetime.now().strftime("%Y-%m-%d")
 
     print(
-        f"Downloading SMAP {args.product} data from {args.start.isoformat()} "
-        f"to {args.end.isoformat()} into folder {args.localroot}.")
+        f"Downloading SMAP {args.short_name} + {args.version} data f"
+        f"rom {args.time_start.format()} "
+        f"to {args.time_end.format()} into folder {args.output}.")
 
     return args
 
 
-def main(args):
-    args = parse_args(args)
+def main(argv):
+    global bounding_box, polygon, filename_filter, url_list, download_dir
 
-    dts = list(daily(args.start, args.end))
-    i = 0
-    while (len(dts) != 0) and i < 3:  # after 3 reties abort
-        url_create_fn = partial(
-            create_dt_url,
-            root=args.urlroot,
-            fname='',
-            subdirs=args.urlsubdirs)
-        fname_create_fn = partial(
-            create_dt_fpath,
-            root=args.localroot,
-            fname='',
-            subdirs=args.localsubdirs)
-        down_func = partial(
-            download,
-            num_proc=args.n_proc,
-            username=args.username,
-            password=args.password,
-            recursive=True,
-            filetypes=args.filetypes,
-            robots_off=True)
+    args = parse_args(argv)
+    # Assign parsed arguments to variables
+    short_name = args.short_name
+    version = args.version
+    time_start = args.time_start
+    time_end = args.time_end
+    download_dir = args.output
+    force = args.force
+    quiet = args.quiet
 
-        download_by_dt(
-            dts, url_create_fn, fname_create_fn, down_func, recursive=True)
+    # Make sure the output directory exists
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)
 
-        dts = dates_empty_folders(args.localroot)  # missing dates
-        i += 1
+    # Prompt for username/password if not provided
+    username = args.username or get_username()
+    password = args.password or get_password()
 
-    if len(dts) != 0:
-        print('----------------------------------------------------------')
-        print('----------------------------------------------------------')
-        print('No data has been downloaded for the following dates:')
-        for date in dts:
-            print(str(date.date()))
+    try:
+        # Call search and download functions
+        if not url_list:
+            url_list = cmr_search(
+                short_name, version, time_start, time_end,
+                bounding_box=bounding_box, polygon=polygon,
+                filename_filter=filename_filter, quiet=quiet
+            )
+        url_list = [u for u in url_list if
+                    any(u.endswith(f".{ext}") for ext in args.filetypes)]
+        cmr_download(url_list, username=username, password=password,
+                     force=force, quiet=quiet)
+    except KeyboardInterrupt:
+        print("\nDownload interrupted.")
+        sys.exit(1)
 
 
 def run():
     main(sys.argv[1:])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     run()
