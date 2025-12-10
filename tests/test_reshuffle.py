@@ -39,33 +39,6 @@ import pytest
     True, False
 ])
 
-# def test_reshuffle(only_land):
-#
-#     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-#                           "smap_io-test-data", "SPL3SMP.006")
-#     startdate = "2020-04-01"
-#     enddate = "2020-04-02"
-#     parameters = ["soil_moisture", "soil_moisture_error"]
-#     bbox = ['-5', '52', '0', '57']
-#     kwargs = ["--crid", "16515", "--overpass", 'PM', "--var_overpass_str", 'False'] + ['--bbox', *bbox]
-#
-#     with tempfile.TemporaryDirectory() as ts_path:
-#         args = [inpath, ts_path, startdate, enddate] + parameters + kwargs
-#
-#         main(args)
-#         assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 3
-#         ds = SMAPTs(ts_path,  parameters=parameters,
-#                     ioclass_kws={'read_bulk': True, 'read_dates': False})
-#         loc = (-2.8, 55.4)
-#         ts = ds.read(*loc)
-#         assert ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0]) == 1289
-#         soil_moisture_values_should = np.array(
-#             [np.nan, 0.262245], dtype=np.float32)
-#
-#         nptest.assert_almost_equal(ts['soil_moisture'].values,
-#                                    soil_moisture_values_should,
-#                                    decimal=6)
-#         ds.close()
 def test_reshuffle(only_land):
 
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -122,7 +95,7 @@ def test_reshuffle_am(only_land):
         ts = ds.read(*loc)
         assert ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0]) == 1289
         soil_moisture_values_should = np.array(
-            [0.255842, 0.246838], dtype=np.float32)
+            [0.25584206, 0.24683787], dtype=np.float32)
 
         nptest.assert_almost_equal(ts['soil_moisture_am'].values,
                                    soil_moisture_values_should,

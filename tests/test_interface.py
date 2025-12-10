@@ -52,7 +52,7 @@ def test_SPL3SMP_Img_land():
     fname = os.path.join(os.path.dirname(__file__),
                          'smap_io-test-data', 'SPL3SMP.006', '2020.04.02',
                          'SMAP_L3_SM_P_20200402_R16515_001.h5')
-    grid = EASE36CellGrid(bbox=(112, -37, 130, -11), only_land=True, margin=(None, 1))
+    grid = EASE36CellGrid(bbox=(112, -37, 130, -11), only_land=True)
     ds = SPL3SMP_Img(fname, grid=grid, overpass='PM', var_overpass_str=False,
                      flatten=True)
     image = ds.read()
@@ -62,7 +62,7 @@ def test_SPL3SMP_Img_land():
     assert image.data['soil_moisture'][0] == -9999.
     gpi, _ = grid.find_nearest_gpi(124.903, -32.311)
     _id = np.where(grid.activegpis == gpi)[0]
-    np.testing.assert_almost_equal(image.data['soil_moisture'][_id], 0.05968,
+    np.testing.assert_almost_equal(image.data['soil_moisture'][_id], 0.059678,
                                    5)
 
 
@@ -72,7 +72,7 @@ def test_SPL3SMP_Img():
                          'SMAP_L3_SM_P_20200401_R16515_001.h5')
 
 
-    ds = SPL3SMP_Img(fname, overpass='PM', var_overpass_str=False, margin=(None, 1))
+    ds = SPL3SMP_Img(fname, overpass='PM', var_overpass_str=False)
     image = ds.read()
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
@@ -94,13 +94,13 @@ def test_SPL3SMP_Img_flatten():
     fname = os.path.join(os.path.dirname(__file__),
                          'smap_io-test-data', 'SPL3SMP.006', '2020.04.01',
                          'SMAP_L3_SM_P_20200401_R16515_001.h5')
-    ds = SPL3SMP_Img(fname, flatten=True, overpass='PM', var_overpass_str=True, margin=(None, 1))
+    ds = SPL3SMP_Img(fname, flatten=True, overpass='PM', var_overpass_str=True)
     image = ds.read()
     assert list(image.data.keys()) == ['soil_moisture_pm']
     assert image.data['soil_moisture_pm'].shape == (np.prod(glob_shape),)
     idx2d = (76, 466)
     idx1d = idx2d_to_1d(idx2d)
-    ref_sm = 0.25859848
+    ref_sm = 0.258598
     np.testing.assert_almost_equal(
         np.flipud(image.data['soil_moisture_pm'].reshape((406, 964)))[idx2d],
         ref_sm, 5
@@ -125,7 +125,7 @@ def test_SPL3SMP_Img_flatten():
     ds = SPL3SMP_Img(fname, flatten=False, overpass='PM',
                      var_overpass_str=True,
                      grid=EASE36CellGrid(
-                         bbox=(lon - 0.5, lat - 0.5, lon + 0.5, lat + 0.5), margin=(None, 1)))
+                         bbox=(lon - 0.5, lat - 0.5, lon + 0.5, lat + 0.5)))
     image_small = ds.read()
     np.testing.assert_almost_equal(image_small['soil_moisture_pm'][1, 1],
                                    ref_sm, 5)
@@ -136,7 +136,7 @@ def test_SPL3SMP_Ds_read_by_date():
                              'smap_io-test-data', 'SPL3SMP.006')
     # grid = EASE36CellGrid(margin=(None, 1))
     ds = SPL3SMP_Ds(root_path, crid=16515, overpass='AM',
-                    var_overpass_str=False, )
+                    var_overpass_str=False)
     image = ds.read(datetime(2020, 4, 1))
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
@@ -157,8 +157,7 @@ def test_SPL3SMP_Ds_read_by_date():
 def test_SPL3SMP_Ds_iterator():
     root_path = os.path.join(os.path.dirname(__file__),
                              'smap_io-test-data', 'SPL3SMP.006')
-    grid = EASE36CellGrid(margin=(None, 1))
-    ds = SPL3SMP_Ds(root_path, overpass='AM', var_overpass_str=False, grid=grid)
+    ds = SPL3SMP_Ds(root_path, overpass='AM', var_overpass_str=False)
     read_img = 0
     for image in ds.iter_images(datetime(2020, 4, 1),
                                 datetime(2020, 4, 2)):

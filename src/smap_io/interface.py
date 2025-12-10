@@ -113,15 +113,11 @@ class SPL3SMP_Img(ImageBase):
                  overpass='AM',
                  time_key='tb_time_seconds',
                  var_overpass_str=True,
-                 margin=(None, None),
                  grid=None,
                  flatten=False):
 
         super().__init__(filename, mode=mode)
-        if margin != (None, None):
-            self.grid = EASE36CellGrid(margin=margin) if grid is None else grid
-        else:
-            self.grid = EASE36CellGrid() if grid is None else grid
+        self.grid = EASE36CellGrid() if grid is None else grid
 
 
         if type(parameter) != list:

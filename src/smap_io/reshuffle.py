@@ -122,7 +122,6 @@ def reshuffle(input_root,
               parameters,
               imgbuffer=200,
               time_key='tb_time_seconds',
-              grid_margin = (None, None),
               ignore_failed_reads=False,
               **ds_kwargs):
     """
@@ -159,10 +158,7 @@ def reshuffle(input_root,
         Time attribute key in the input files.
     """
     if 'grid' not in ds_kwargs.keys():
-        if grid_margin is not None:
-            ds_kwargs['grid'] = EASE36CellGrid(margin=grid_margin)
-        else:
-            ds_kwargs['grid'] = EASE36CellGrid()
+        ds_kwargs['grid'] = EASE36CellGrid()
     ds_kwargs['parameter'] = parameters
     ds_kwargs['flatten'] = True
 
@@ -322,7 +318,7 @@ def parse_args(args):
 def main(args):
     args = parse_args(args)
 
-    grid = EASE36CellGrid(only_land=True, margin=(None, 1))
+    grid = EASE36CellGrid(only_land=True)
     reshuffle(args.dataset_root,
               args.timeseries_root,
               args.start,
@@ -337,7 +333,7 @@ def run():
 
 
 if __name__ == '__main__':
-    # grid = EASE36CellGrid(only_land=True)
+    grid = EASE36CellGrid(only_land=True)
     reshuffle("/home/tunterho/Projects/smap_test_download_data/temp",
               "/home/tunterho/smap_io/data/output009/AM_PM",
               datetime(2025, 9, 29, 23, 59, 59),
@@ -346,7 +342,6 @@ if __name__ == '__main__':
 
               ["soil_moisture", 'soil_moisture_error',
                'tb_time_seconds'],
-              time_key='tb_time_seconds',
-              grid_margin=(None, 1),)
+              time_key='tb_time_seconds',)
 
 
