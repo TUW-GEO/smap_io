@@ -122,6 +122,7 @@ def reshuffle(input_root,
               parameters,
               imgbuffer=200,
               time_key='tb_time_seconds',
+              grid_margin = (None, None),
               ignore_failed_reads=False,
               **ds_kwargs):
     """
@@ -158,7 +159,10 @@ def reshuffle(input_root,
         Time attribute key in the input files.
     """
     if 'grid' not in ds_kwargs.keys():
-        ds_kwargs['grid'] = EASE36CellGrid()
+        if grid_margin is not None:
+            ds_kwargs['grid'] = EASE36CellGrid(margin=grid_margin)
+        else:
+            ds_kwargs['grid'] = EASE36CellGrid()
     ds_kwargs['parameter'] = parameters
     ds_kwargs['flatten'] = True
 
@@ -318,8 +322,7 @@ def parse_args(args):
 def main(args):
     args = parse_args(args)
 
-    grid = EASE36CellGrid(only_land=True)
-
+    grid = EASE36CellGrid(only_land=True, margin=(None, 1))
     reshuffle(args.dataset_root,
               args.timeseries_root,
               args.start,
@@ -334,20 +337,16 @@ def run():
 
 
 if __name__ == '__main__':
-    grid = EASE36CellGrid(only_land=True)
-    reshuffle("/data/SMAP_L3_V9_input/input",
+    # grid = EASE36CellGrid(only_land=True)
+    reshuffle("/home/tunterho/Projects/smap_test_download_data/temp",
               "/home/tunterho/smap_io/data/output009/AM_PM",
+              datetime(2025, 9, 29, 23, 59, 59),
+              datetime(2025, 11, 12, 0, 0, 0),
 
-              datetime(2015, 3, 31, 0, 0, 0),
-              datetime(2025, 1, 26, 23, 59, 59),
 
-              ["soil_moisture", 'soil_moisture_error', "retrieval_qual_flag",
-               "freeze_thaw_fraction", "surface_flag", "surface_temperature",
-               "vegetation_opacity", "vegetation_water_content",
-               "landcover_class", 'static_water_body_fraction',
+              ["soil_moisture", 'soil_moisture_error',
                'tb_time_seconds'],
               time_key='tb_time_seconds',
-              grid=grid,
-              overpass='BOTH')
+              grid_margin=(None, 1),)
 
 
