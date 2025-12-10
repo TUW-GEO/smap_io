@@ -38,6 +38,7 @@ import pytest
 @pytest.mark.parametrize("only_land", [
     True, False
 ])
+
 def test_reshuffle(only_land):
 
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -88,8 +89,7 @@ def test_reshuffle_am(only_land):
 
         main(args)
         assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 915
-        ds = SMAPTs(ts_path,  parameters=parameters,
-                    ioclass_kws={'read_bulk': True, 'read_dates': False})
+
         ds = SMAPL3_V9Reader(ts_path, ioclass_kws={'read_bulk': True})
         loc = (-2.8, 55.4)
         ts = ds.read(*loc)

@@ -37,10 +37,9 @@ class DownloadTest(unittest.TestCase):
         startdate = enddate = "2018-12-01"
 
         args = [
-            dl_path, '-s', startdate, '-e', enddate,
+            '--output', dl_path, '--time_start', startdate, '--time_end', enddate,
             '--username', os.environ[env_username],
             '--password',  os.environ[env_pwd],
-            '--n_proc', '1'
         ]
 
         main(args)
