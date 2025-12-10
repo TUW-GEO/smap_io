@@ -147,7 +147,7 @@ def test_SPL3SMP_Ds_read_by_date():
 
     ds = SPL3SMP_Ds(root_path, crid=16515, overpass='PM',
                     var_overpass_str=True,
-                    flatten=True, grid=grid)
+                    flatten=True)
     image = ds.read(datetime(2020, 4, 1))
     np.testing.assert_almost_equal(
         image.data['soil_moisture_pm'][idx2d_to_1d((76, 466))],
