@@ -13,7 +13,7 @@ on:
   schedule:
     - cron: '0 0 * * *' # daily
 
-env:  # Required to upload docker image
+env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.9', '3.12']
-        os: ["ubuntu-latest",  "windows-latest"]
+        os: ["ubuntu-latest", "windows-latest"]
     name: py${{ matrix.python-version }}@${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -42,7 +42,7 @@ jobs:
           channel-priority: flexible
           activate-environment: smap_io
           auto-activate-base: false
-      - name: Print environment infos
+      - name: Print environment info
         shell: bash -l {0}
         run: |
           conda info -a
@@ -61,11 +61,9 @@ jobs:
           SMAPPWD: ${{ secrets.SMAPPWD }}
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
         shell: bash -l {0}
-        # On Windows, wget needs to be installed properly first, not tested here
         run: |
           pip install -e .[testing]
-          if [ ${{ matrix.os }} == "windows-latest" ]
-          then
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
             pytest --cache-clear -m "not wget"
           else
             pytest --cache-clear
@@ -74,7 +72,8 @@ jobs:
         continue-on-error: true
         shell: bash -l {0}
         run: |
-          pip install coveralls && coveralls "github-actions"
+          pip install coveralls
+          coveralls --service=github
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
@@ -83,13 +82,10 @@ jobs:
         shell: bash -l {0}
         run: |
           pip install setuptools_scm twine
-          if [ ${{ matrix.os }} == "windows-latest" ]
-          then
-            # build whls on windows
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
             pip install wheel
             python setup.py bdist_wheel --dist-dir artifacts/dist
           else
-            # build dist on linux
             python setup.py sdist --dist-dir artifacts/dist
           fi
           ls artifacts/dist
@@ -106,15 +102,15 @@ jobs:
     runs-on: ubuntu-latest
     container: python:3-slim
     steps:
-      - name: Finished
+      - name: Finalize Coveralls
         run: |
-          pip3 install --upgrade coveralls && coveralls "github-actions"--finish
+          pip3 install --upgrade coveralls
+          coveralls --service=github --finish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-pypi-package:
     name: Publish PyPI 🚀
-    # Will only trigger when Tests have passed on release/tag from the TUW-GEO repository
     if: |
       startsWith(github.ref, 'refs/tags/v') &&
       startsWith(github.repository, 'TUW-GEO')
@@ -141,10 +137,10 @@ jobs:
           verify_metadata: true
           packages_dir: Artifacts/dist/
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }} # this needs to be uploaded to github actions secrets
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
   publish-docker-image:
     name: Publish Docker 📦
-    # Will only trigger when the Tests have passed, and this is a release / tag branch from the TUW-GEO repository
     if: startsWith(github.ref, 'refs/tags/v') && startsWith(github.repository, 'TUW-GEO')
     needs: build
     runs-on: ubuntu-latest
@@ -162,7 +158,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
