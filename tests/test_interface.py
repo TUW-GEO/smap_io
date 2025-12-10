@@ -134,9 +134,9 @@ def test_SPL3SMP_Img_flatten():
 def test_SPL3SMP_Ds_read_by_date():
     root_path = os.path.join(os.path.dirname(__file__),
                              'smap_io-test-data', 'SPL3SMP.006')
-    grid = EASE36CellGrid(margin=(None, 1))
+    # grid = EASE36CellGrid(margin=(None, 1))
     ds = SPL3SMP_Ds(root_path, crid=16515, overpass='AM',
-                    var_overpass_str=False, grid=grid)
+                    var_overpass_str=False, )
     image = ds.read(datetime(2020, 4, 1))
     assert list(image.data.keys()) == ['soil_moisture']
     assert image.data['soil_moisture'].shape == (406, 964)
