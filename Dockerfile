@@ -5,13 +5,14 @@ USER root
 
 RUN apk update && \
     apk upgrade && \
-    apk add git && \
-    apk add build-base && \
-    apk add g++ && \
-    apk add bsd-compat-headers && \
-    apk add libtiff libtiff-dev
-
-RUN apk add lftp
+    apk add --no-cache \
+        git \
+        build-base \
+        libbsd \
+        libbsd-dev \
+        libtiff \
+        libtiff-dev \
+        lftp
 
 WORKDIR /app
 
