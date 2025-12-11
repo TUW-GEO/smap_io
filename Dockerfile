@@ -1,5 +1,5 @@
 FROM mambaorg/micromamba:1.3.1-alpine
-MAINTAINER Thomas Unterholzner <thomas.unterholzner@geo.tuwien.ac.att>
+LABEL maintainer="Thomas Unterholzner <thomas.unterholzner@geo.tuwien.ac.at>"
 
 USER root
 
@@ -9,7 +9,7 @@ RUN apk update && \
     apk add build-base && \
     apk add g++ && \
     apk add bsd-compat-headers && \
-    apk add tiff
+    apk add libtiff libtiff-dev
 
 RUN apk add lftp
 
