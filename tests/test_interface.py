@@ -25,19 +25,15 @@
 Tests for reading the image datasets.
 '''
 
-from smap_io.interface import SPL3SMP_Img
 from smap_io.interface import SPL3SMP_Ds
 import os
 from datetime import datetime
 import numpy as np
 from smap_io.grid import EASE36CellGrid
-import pytest
 import smap_io.interface as interface
-from unittest.mock import patch, MagicMock
 from smap_io.interface import SPL3SMP_Img
 import pytest
 from unittest.mock import MagicMock, patch
-import h5py
 glob_shape = (406, 964)
 
 
