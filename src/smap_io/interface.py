@@ -42,6 +42,7 @@ import shutil
 from datetime import datetime
 import numpy as np
 import xarray as xr
+import logging
 
 
 
@@ -613,6 +614,51 @@ class SMAPL3_V9Reader(GriddedNcIndexedRaggedTs):
         assert ts is not None, "No data read"
         return ts
 
+
+class ReaderWithExtension_SMAP():
+    """
+        Concatenate 2 time series upon reading
+        """
+
+    def __init__(self, cls, path, path_ext, *args, **kwargs):
+        """
+        Parameters
+        ----------
+        cls: Callable
+            Reader class to wrap
+        path: str
+            Path to the main time series (not the extension dataset)
+        path_ext: str
+            Extension time series path
+        args, kwargs:
+            Additional arguments to set up the readers
+        """
+        self.base_reader = cls(path, *args, **kwargs)
+        try:
+            self.ext_reader = cls(path_ext, *args, **kwargs)
+        except FileNotFoundError:
+            logging.error(f"No extension dataset found in path {path_ext}")
+            self.ext_reader = None
+
+    @property
+    def grid(self):
+        return self.base_reader.grid
+
+    def read(self, *args, **kwargs) -> pd.DataFrame:
+        """
+        Read time series at location for both the base dataset and the
+        extension. If extension is read, concatenate both in time.
+        """
+        try:
+            if self.ext_reader is not None:
+                ts = self.ext_reader.read(*args, **kwargs)
+            else:
+                ts = self.base_reader.read(*args, **kwargs)
+        except Exception as e:
+            logging.error(f"Extension reading failed for {args} {kwargs} with"
+                          f"error: {e}")
+
+        return ts
 
 
 
