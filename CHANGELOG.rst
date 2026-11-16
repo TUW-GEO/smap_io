@@ -4,6 +4,10 @@ Changelog
 
 Unreleased
 ==========
+-
+
+Version 0.9.0
+=============
 - If multiple (re-processed) files exist for a day, always use the latest
   one (highest CRID, then highest file counter), both when reading images and
   when organizing files for reshuffling (``select_latest_file``)
