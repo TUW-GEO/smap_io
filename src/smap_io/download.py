@@ -36,7 +36,6 @@ import sys
 import time
 from datetime import datetime
 from getpass import getpass
-import trollsift.parser as parser
 import glob
 
 

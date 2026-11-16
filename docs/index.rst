@@ -13,7 +13,8 @@ Contents
    Download <download>
    Image Reading <read_img>
    Conversion to Time Series <img2ts>
-   Time Series Reading <read_img>
+   Time Series Reading <read_ts>
+   Contributing <contributing>
    License <license>
    Authors <authors>
    Changelog <changelog>

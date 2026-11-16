@@ -1,119 +1,122 @@
-# This workflow will install Python dependencies and run tests on
-# windows and linux systems with a variety of Python versions
+# Run the tests on Linux and Windows for the oldest and newest supported
+# Python version and build the Docker image (the docs are built by Read the
+# Docs, see .readthedocs.yml). For release tags (v*)
+# of the TUW-GEO repository, publish the package to PyPI and the Docker image
+# to the GitHub container registry.
 
-# For more information see:
-# https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: Automated Tests
+name: CI/CD
 
 on:
   push:
   pull_request:
-  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *' # daily
+  workflow_dispatch:
 
-env:
+permissions:
+  contents: read
+
+concurrency:
+  # cancel running jobs of the same branch / PR, except for tags
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:  # Required to upload docker image
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  LATEST_PYTHON: '3.13'  # newest supported version, used for dist and Docker
 
 jobs:
   build:
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.12']
-        os: ["ubuntu-latest", "windows-latest"]
     name: py${{ matrix.python-version }}@${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-
+    strategy:
+      fail-fast: true  # cancel the other jobs if one fails (saves CI minutes)
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
+        python-version: ['3.9', '3.13']  # oldest and newest supported
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
           fetch-depth: 0
           lfs: true
       - name: Checkout LFS objects
         run: git lfs checkout
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/setup-python@v7
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-          environment-file: environment.yml
-          channel-priority: flexible
-          activate-environment: smap_io
-          auto-activate-base: false
-      - name: Print environment info
-        shell: bash -l {0}
+      - name: Install package with test dependencies
+        shell: bash
         run: |
-          conda info -a
-          conda list
-          pip list
+          python -m pip install --upgrade pip
+          pip install -e ".[testing]"
+      - name: Print Infos
+        shell: bash
+        run: |
+          ls -R tests/smap_io-test-data
           which pip
           which python
+          pip list
       - name: Export Environment
-        shell: bash -l {0}
+        shell: bash
         run: |
           mkdir -p artifacts
-          filename=env_py${{ matrix.python-version }}_${{ matrix.os }}.yml
-          conda env export --no-builds | grep -v "prefix" > artifacts/$filename
-      - name: Install package and test
+          filename=env_py${{ matrix.python-version }}_${{ matrix.os }}.txt
+          pip freeze --exclude-editable > artifacts/$filename
+      - name: Run tests
+        shell: bash
         env:
-          SMAPPWD: ${{ secrets.SMAPPWD }}
+          # Earthdata credentials, the download tests are skipped without them
           SMAPUSERNAME: ${{ secrets.SMAPUSERNAME }}
-        shell: bash -l {0}
+          SMAPPWD: ${{ secrets.SMAPPWD }}
         run: |
-          pip install -e .[testing]
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             pytest --cache-clear -m "not wget"
           else
             pytest --cache-clear
           fi
       - name: Upload Coverage
-        continue-on-error: true
-        shell: bash -l {0}
+        continue-on-error: true  # don't fail the build if coveralls is down
+        shell: bash
         run: |
-          pip install coveralls
-          coveralls --service=github
+          pip install coveralls && coveralls --service=github
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
+          COVERALLS_FLAG_NAME: py${{ matrix.python-version }}-${{ matrix.os }}
           COVERALLS_PARALLEL: true
       - name: Create wheel and dist package
-        shell: bash -l {0}
+        # pure python package: build sdist and wheel only once
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == env.LATEST_PYTHON
+        shell: bash
         run: |
-          pip install setuptools_scm twine
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            pip install wheel
-            python setup.py bdist_wheel --dist-dir artifacts/dist
-          else
-            python setup.py sdist --dist-dir artifacts/dist
-          fi
-          ls artifacts/dist
+          pip install build twine
+          python -m build --outdir artifacts/dist
           twine check artifacts/dist/*
+          ls artifacts/dist
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Artifacts-py${{ matrix.python-version }}-${{ matrix.os }}
           path: artifacts/*
 
   publish-coverage:
-    name: Submit Coveralls 👚
+    name: Publish Coverage 👚
     needs: build
     runs-on: ubuntu-latest
     container: python:3-slim
+    continue-on-error: true
     steps:
-      - name: Finalize Coveralls
+      - name: Finished
         run: |
-          pip3 install --upgrade coveralls
-          coveralls --service=github --finish
+          pip3 install --upgrade coveralls && coveralls --service=github --finish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-pypi-package:
     name: Publish PyPI 🚀
-    if: |
-      startsWith(github.ref, 'refs/tags/v') &&
-      startsWith(github.repository, 'TUW-GEO')
+    # Will only trigger when the Tests have passed, and this is a release / tag branch from the TUW-GEO repository
+    if: startsWith(github.ref, 'refs/tags/v') && startsWith(github.repository, 'TUW-GEO')
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -122,7 +125,7 @@ jobs:
           echo "GITHUB_REF = $GITHUB_REF"
           echo "GITHUB_REPOSITORY = $GITHUB_REPOSITORY"
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: Artifacts
           pattern: Artifacts-*
@@ -130,18 +133,19 @@ jobs:
       - name: Display downloaded files
         run: ls -aR
       - name: Upload to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
-          skip_existing: true
+          skip-existing: true
           verbose: true
-          verify_metadata: true
-          packages_dir: Artifacts/dist/
+          verify-metadata: true
+          packages-dir: Artifacts/dist/
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN }} # this needs to be uploaded to github actions secrets
 
-  publish-docker-image:
-    name: Publish Docker 📦
-    if: startsWith(github.ref, 'refs/tags/v') && startsWith(github.repository, 'TUW-GEO')
+  docker-image:
+    name: Docker 📦
+    # The image is built for every run (to test the Dockerfile), but only
+    # published for release tags of the TUW-GEO repository
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -149,30 +153,37 @@ jobs:
       packages: write
       attestations: write
       id-token: write
+    env:
+      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && startsWith(github.repository, 'TUW-GEO') }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # for the package version (setuptools_scm)
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata for Docker
+      - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: Build and push Docker image
         id: push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          build-args: PYTHON_VERSION=${{ env.LATEST_PYTHON }}
+          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
       - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
+        if: env.PUBLISH == 'true'
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
           subject-digest: ${{ steps.push.outputs.digest }}

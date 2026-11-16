@@ -1,9 +1,82 @@
 [build-system]
-# AVOID CHANGING REQUIRES: IT WILL BE UPDATED BY PYSCAFFOLD!
-requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
+requires = ["setuptools>=77", "setuptools_scm[toml]>=8"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "smap_io"
+description = "SMAP (Soil Moisture Active Passive) data readers"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+license = "MIT"
+license-files = ["LICENSE.txt"]
+authors = [{ name = "TU Wien", email = "remote.sensing@geo.tuwien.ac.at" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dynamic = ["version"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "xarray",
+    "netCDF4",
+    "h5py",
+    "parse",
+    "repurpose>=0.13.2",
+    "pygeobase",
+    "pygeogrids",
+    "pynetcf",
+    "ease_grid",
+    "click",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+testing = [
+    "pytest",
+    "pytest-cov",
+]
+docs = [
+    "sphinx>=7",
+]
+
+[project.urls]
+Homepage = "https://github.com/TUW-GEO/smap_io"
+Documentation = "https://smap-io.readthedocs.io/en/latest/"
+
+[project.scripts]
+smap_l3 = "smap_io.cli:smap_l3"
+smap_repurpose = "smap_io.reshuffle:run"
+smap_download = "smap_io.download:run"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["smap_io", "smap_io.*"]
+
+[tool.setuptools.package-data]
+smap_io = ["grids/*.nc"]
+
 [tool.setuptools_scm]
-# For smarter version schemes and other configuration options,
-# check out https://github.com/pypa/setuptools_scm
+# See configuration details in https://github.com/pypa/setuptools_scm
 version_scheme = "no-guess-dev"
+
+[tool.yapf]
+based_on_style = "yapf"
+indent_width = 4
+column_limit = 79
+
+[tool.pytest.ini_options]
+addopts = "--cov smap_io --cov-report term-missing --verbose"
+norecursedirs = ["dist", "build"]
+testpaths = ["tests"]
+markers = [
+    "wget: tests that download data from NSIDC (need Earthdata credentials)",
+]

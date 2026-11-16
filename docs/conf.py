@@ -7,6 +7,7 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+import datetime
 import os
 import sys
 import shutil
@@ -88,7 +89,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "smap_io"
-copyright = "2022, TU Wien"
+copyright = f"2016-{datetime.date.today().year}, TU Wien"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -146,7 +147,7 @@ pygments_style = "sphinx"
 # keep_warnings = False
 
 # If this is True, todo emits a warning for each TODO entries. The default is False.
-todo_emit_warnings = True
+todo_emit_warnings = False
 
 
 # -- Options for HTML output -------------------------------------------------

@@ -1,0 +1,50 @@
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    # Ignore bot comments (prevents OpenCode triggering itself) and
+    # only allow owner, org members and collaborators
+    if: |
+      github.event.comment.user.type != 'Bot' &&
+      (contains(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
+        env:
+          TUW_API_KEY: ${{ secrets.TUW_API_KEY }}
+          TUW_API_URL: ${{ secrets.TUW_API_URL }}
+          OPENCODE_CONFIG_CONTENT: |
+            {
+              "share": "disabled",
+              "provider": {
+                "tuw": {
+                  "npm": "@ai-sdk/openai-compatible",
+                  "name": "TU Wien Models",
+                  "options": {
+                    "baseURL": "{env:TUW_API_URL}",
+                    "apiKey": "{env:TUW_API_KEY}"
+                  },
+                  "models": { "main": { "name": "main" } }
+                }
+              }
+            }
+        with:
+          model: tuw/main
+          share: false

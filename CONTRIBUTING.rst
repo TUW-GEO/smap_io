@@ -108,9 +108,13 @@ This can easily be done via either |virtualenv|_::
 
 or Miniconda_::
 
-    conda create -n smap_io python=3
-    conda env update -f environment.yml -n smap_io
+    conda create -n smap_io python=3.14
     conda activate smap_io
+
+Then install the package in editable mode with the test dependencies
+(all dependencies are installed with pip from ``pyproject.toml``)::
+
+    pip install -e ".[testing]"
 
 Clone the repository
 --------------------
@@ -175,7 +179,7 @@ Implement your changes
 Code formatting
 ---------------
 To apply pep8 conform styling to any changed files we use yapf.
-The correct settings are already set in setup.cfg.
+The correct settings are already set in pyproject.toml.
 Therefore the following command should be enough::
 
     yapf file.py --in-place
@@ -206,7 +210,7 @@ package:
    potentially in the root of your project.
 
 #. Sometimes |tox|_ misses out when new dependencies are added, especially to
-   ``setup.cfg`` and ``docs/requirements.txt``. If you find any problems with
+   ``pyproject.toml``. If you find any problems with
    missing dependencies when running a command with |tox|_, try to recreate the
    ``tox`` environment using the ``-r`` flag. For example, instead of::
 

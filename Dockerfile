@@ -1,35 +1,24 @@
-FROM mambaorg/micromamba:1.3.1-alpine
+# Image with the smap_io package.
+# Usage, e.g.: docker run --rm -v /data:/data <image> smap_l3 update_img /data/smap_l3
+# Earthdata credentials for downloads are passed with --username / --password
+# (or a ~/.netrc file).
+ARG PYTHON_VERSION=3.14
 
-LABEL maintainer="Thomas Unterholzner <thomas.unterholzner@geo.tuwien.ac.at>"
+# Build the wheel in a separate stage, git is needed to derive the version
+# (setuptools_scm), but is not part of the final image.
+FROM python:${PYTHON_VERSION}-slim AS build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
 
-USER root
+FROM python:${PYTHON_VERSION}-slim
+LABEL org.opencontainers.image.source="https://github.com/TUW-GEO/smap_io" \
+      org.opencontainers.image.description="SMAP soil moisture data download, readers and time series conversion" \
+      org.opencontainers.image.licenses="MIT"
+COPY --from=build /wheels /wheels
+RUN pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
 
-# Install system dependencies
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-        git \
-        build-base \
-        libbsd \
-        tiff-dev \
-        lftp
-
-WORKDIR /app
-
-# Copy project files
-COPY . /app
-
-# ARGs for micromamba environment activation and pip
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
-ARG PIP_USE_PEP517=1
-
-# Install Python and dependencies
-RUN micromamba install -y -n base -c conda-forge python=3.12 && \
-    micromamba install -y -n base -f /app/environment.yml && \
-    pip install /app/. && \
-    micromamba clean --all --yes
-
-# Remove source code as it is installed
-RUN rm -rf /app
-
-# Entrypoint for container
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh"]
+CMD ["smap_l3", "--help"]

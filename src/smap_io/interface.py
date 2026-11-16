@@ -723,23 +723,32 @@ class ReaderWithExtension_SMAP():
 def organize_smap_files(root_dir, start_date=None, end_date=None,
                         file_pattern=None, latest_only=True):
     """
-    Scans all subdirectories under `root_dir` for files matching:
-        SMAP_L3_SM_P_YYYYMMDD_R#####_###.h5
+    Scans all subdirectories under `root_dir` for files matching
+    ``SMAP_L3_SM_P_YYYYMMDD_R#####_###.h5``.
     Creates a 'temp' folder in `root_dir` containing subfolders named by date (YYYY.MM.DD),
     and copies each file into its respective date folder.
     Also copies 'grid.nc' from the root directory into 'temp'.
 
-    Optional:
-        start_date (str): Include files on or after this date, format 'YYYY-MM-DD'.
-        end_date (str): Include files on or before this date, format 'YYYY-MM-DD'.
-        latest_only (bool): If multiple files (re-processed versions) exist
-            for a day, copy only the latest one (see `select_latest_file`).
-            Default: True
+    Parameters
+    ----------
+    root_dir : str
+        Image root directory.
+    start_date : str, optional
+        Include files on or after this date, format 'YYYY-MM-DD'.
+    end_date : str, optional
+        Include files on or before this date, format 'YYYY-MM-DD'.
+    file_pattern : str, optional
+        Regex for the file names, default: SMAP L3 file names.
+    latest_only : bool, optional (default: True)
+        If multiple files (re-processed versions) exist for a day, copy only
+        the latest one (see `select_latest_file`).
 
-    Example:
-        organize_smap_files("/path/to/data", start_date="2025-01-01", end_date="2025-12-31")
-        SMAP_L3_SM_P_20251018_R19240_002.h5 → root_dir/temp/2025.10.18/
-        grid.nc → root_dir/temp/grid.nc
+    Examples
+    --------
+    ``organize_smap_files("/path/to/data", start_date="2025-01-01",
+    end_date="2025-12-31")`` copies e.g.
+    ``SMAP_L3_SM_P_20251018_R19240_002.h5`` to
+    ``root_dir/temp/2025.10.18/`` and ``grid.nc`` to ``root_dir/temp/grid.nc``.
     """
     # Create 'temp' directory in root. Remove leftovers from a previous
     # (crashed) run first, so that only the selected files end up in it.

@@ -1,0 +1,12 @@
+# Keep the build context small, .git is needed for the package version
+tests/smap_io-test-data
+build
+dist
+docs/_build
+docs/api
+**/__pycache__
+**/*.egg-info
+.pytest_cache
+.coverage
+.idea
+src/smap_io/_local_scripts

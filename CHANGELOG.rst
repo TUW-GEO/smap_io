@@ -13,6 +13,16 @@ Unreleased
 - ``smap_l3 reshuffle`` refuses to write into a directory that already
   contains time series files (it would append duplicate data)
 - Add missing dependencies ``click``, ``pyyaml``, ``xarray``
+- Packaging: all metadata in ``pyproject.toml`` (``setup.cfg``, ``setup.py``
+  and ``environment.yml`` removed), dependencies are installed with pip only.
+  Requires Python >= 3.11. Removed unused dependencies ``trollsift``,
+  ``pyresample``, ``pyproj``.
+- CI: pip based tests on Linux / Windows for Python 3.11 and 3.14, Docker
+  image is built on every run, OpenCode workflow (``/oc`` comments),
+  dependabot for GitHub Actions
+- Docker image based on ``python:3.14-slim`` (no conda)
+- Read the Docs: new config (Python 3.14, docs dependencies from the
+  ``docs`` extra)
 
 Version 0.8.1
 =============
@@ -56,7 +66,7 @@ Version 0.3
 - Add kwargs to time series reader
 - Add option for download checking
 - Add CRID reading
-- Name PM variables *_pm in time series
+- Name PM variables ``*_pm`` in time series
 - Add download module
 - Add SMAP L3 v4 and v5 support
 - Update readme
