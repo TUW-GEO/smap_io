@@ -34,7 +34,7 @@ jobs:
       fail-fast: true  # cancel the other jobs if one fails (saves CI minutes)
       matrix:
         os: ["ubuntu-latest", "windows-latest"]
-        python-version: ['3.9', '3.13']  # oldest and newest supported
+        python-version: ['3.11', '3.13']  # oldest and newest supported
     steps:
       - uses: actions/checkout@v7
         with:
