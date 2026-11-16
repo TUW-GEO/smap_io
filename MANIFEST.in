@@ -1,0 +1,2 @@
+# Test data is a separate repository (git submodule)
+prune tests/smap_io-test-data

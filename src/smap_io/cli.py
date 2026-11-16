@@ -233,7 +233,19 @@ def cli_reshuffle(img_path, ts_path, parameters, time_key,
     """
     Convert SMAP L3 imagery to time series storage format.
     PARAMETERS should be a comma-separated list of variables.
+    TS_PATH must not contain any time series (.nc) files yet, because the
+    conversion always appends to existing files (which would duplicate
+    data). Use `update_ts` to extend an existing record.
     """
+    if os.path.isdir(ts_path) and any(
+            f.endswith('.nc') and f != 'grid.nc'
+            for f in os.listdir(ts_path)):
+        raise click.ClickException(
+            f"{ts_path} already contains time series (.nc) files. "
+            f"Reshuffling into it would append duplicate data. Use "
+            f"`smap_l3 update_ts IMG_PATH TS_PATH` to extend the record, or "
+            f"pass an empty directory to reprocess from scratch.")
+
     # Organize SMAP files by date
 
     props = read_yaml_from_folder(img_path)

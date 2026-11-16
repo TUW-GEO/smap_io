@@ -50,6 +50,65 @@ counter = 0
 
 overpass_state_AM = True
 
+# e.g. SMAP_L3_SM_P_20251018_R19240_002.h5
+SMAP_FNAME_PATTERN = re.compile(
+    r"^SMAP_L3_SM_P_(?P<date>\d{8})_R(?P<crid>\d+)_(?P<counter>\d+)\.h5$")
+
+
+def parse_smap_filename(filename):
+    """
+    Parse date, Composite Release ID (CRID) and file counter from a SMAP L3
+    file name like SMAP_L3_SM_P_20251018_R19240_002.h5.
+
+    Parameters
+    ----------
+    filename: str
+        File name or path
+
+    Returns
+    -------
+    props: dict or None
+        Dict with keys 'date' (str, YYYYMMDD), 'crid' (int) and
+        'counter' (int), or None if the name does not match the pattern.
+    """
+    m = SMAP_FNAME_PATTERN.match(os.path.basename(filename))
+    if m is None:
+        return None
+    return {'date': m.group('date'), 'crid': int(m.group('crid')),
+            'counter': int(m.group('counter'))}
+
+
+def select_latest_file(filenames):
+    """
+    From multiple SMAP files for the same day select the latest one.
+    NSIDC re-processes files and then publishes them with a higher
+    Composite Release ID (CRID) or a higher file counter (_001, _002, ...).
+    The latest file is the one with the highest (CRID, counter). Files whose
+    names do not follow the SMAP naming convention are ranked lowest, and
+    are only selected (via the last name in sorted order) if no file follows
+    the convention.
+
+    Parameters
+    ----------
+    filenames: list[str]
+        File names or paths (all for the same day).
+
+    Returns
+    -------
+    latest: str
+        The selected file name / path
+    """
+    if len(filenames) == 0:
+        raise ValueError("No files passed to select from.")
+
+    def key(f):
+        p = parse_smap_filename(f)
+        if p is None:
+            return (0, -1, -1, os.path.basename(f))
+        return (1, p['crid'], p['counter'], os.path.basename(f))
+
+    return sorted(filenames, key=key)[-1]
+
 def increment_counter(var_name):
     if var_name in globals():
         globals()[var_name] += 1
@@ -513,17 +572,14 @@ class SPL3SMP_Ds(MultiTemporalImageBase):
                                       str_param=str_param)
         if len(filename) == 0:
             raise IOError("No file found for {:}".format(timestamp.ctime()))
+        latest = select_latest_file(filename)
         if len(filename) > 1:
-            warnings.warn(
-                f"File search is ambiguous for timestamp {timestamp}: "
-                f"{filename}. "
-                f"Sorting and using last file, with the higher CRID: "
-                f"{sorted(filename)[-1]}"
-            )
-            filename = sorted(filename)
-        # filenames = sorted(filename)
+            logging.info(
+                f"Multiple files found for timestamp {timestamp}: "
+                f"{[os.path.basename(f) for f in filename]}. "
+                f"Using the latest one: {os.path.basename(latest)}")
 
-        return filename[-1]
+        return latest
 
 
 class SMAPTs(GriddedNcOrthoMultiTs):
@@ -664,25 +720,41 @@ class ReaderWithExtension_SMAP():
 
 
 
-def organize_smap_files(root_dir, start_date=None, end_date=None, file_pattern=None):
+def organize_smap_files(root_dir, start_date=None, end_date=None,
+                        file_pattern=None, latest_only=True):
     """
-    Scans all subdirectories under `root_dir` for files matching:
-        SMAP_L3_SM_P_YYYYMMDD_R#####_###.h5
+    Scans all subdirectories under `root_dir` for files matching
+    ``SMAP_L3_SM_P_YYYYMMDD_R#####_###.h5``.
     Creates a 'temp' folder in `root_dir` containing subfolders named by date (YYYY.MM.DD),
     and copies each file into its respective date folder.
     Also copies 'grid.nc' from the root directory into 'temp'.
 
-    Optional:
-        start_date (str): Include files on or after this date, format 'YYYY-MM-DD'.
-        end_date (str): Include files on or before this date, format 'YYYY-MM-DD'.
+    Parameters
+    ----------
+    root_dir : str
+        Image root directory.
+    start_date : str, optional
+        Include files on or after this date, format 'YYYY-MM-DD'.
+    end_date : str, optional
+        Include files on or before this date, format 'YYYY-MM-DD'.
+    file_pattern : str, optional
+        Regex for the file names, default: SMAP L3 file names.
+    latest_only : bool, optional (default: True)
+        If multiple files (re-processed versions) exist for a day, copy only
+        the latest one (see `select_latest_file`).
 
-    Example:
-        organize_smap_files("/path/to/data", start_date="2025-01-01", end_date="2025-12-31")
-        SMAP_L3_SM_P_20251018_R19240_002.h5 → root_dir/temp/2025.10.18/
-        grid.nc → root_dir/temp/grid.nc
+    Examples
+    --------
+    ``organize_smap_files("/path/to/data", start_date="2025-01-01",
+    end_date="2025-12-31")`` copies e.g.
+    ``SMAP_L3_SM_P_20251018_R19240_002.h5`` to
+    ``root_dir/temp/2025.10.18/`` and ``grid.nc`` to ``root_dir/temp/grid.nc``.
     """
-    # Create 'temp' directory in root
+    # Create 'temp' directory in root. Remove leftovers from a previous
+    # (crashed) run first, so that only the selected files end up in it.
     temp_dir = os.path.join(root_dir, "temp")
+    if os.path.isdir(temp_dir):
+        shutil.rmtree(temp_dir)
     os.makedirs(temp_dir, exist_ok=True)
 
     # Regex for filenames like SMAP_L3_SM_P_20251018_R19240_002.h5
@@ -703,7 +775,8 @@ def organize_smap_files(root_dir, start_date=None, end_date=None, file_pattern=N
 
     copied_files = 0
 
-    # Walk through all subdirectories
+    # Walk through all subdirectories and collect matching files per date
+    files_per_date = {}
     for dirpath, _, filenames in os.walk(root_dir):
         # Skip the 'temp' directory to avoid recursive copying
         if dirpath.startswith(temp_dir):
@@ -721,17 +794,28 @@ def organize_smap_files(root_dir, start_date=None, end_date=None, file_pattern=N
                 if end_dt and file_date > end_dt:
                     continue
 
-                # Create destination folder by date
-                folder_name = f"{date_str[:4]}.{date_str[4:6]}.{date_str[6:8]}"
-                target_folder = os.path.join(temp_dir, folder_name)
-                os.makedirs(target_folder, exist_ok=True)
+                files_per_date.setdefault(date_str, []).append(
+                    os.path.join(dirpath, filename))
 
-                source_file = os.path.join(dirpath, filename)
-                dest_file = os.path.join(target_folder, filename)
+    for date_str, source_files in sorted(files_per_date.items()):
+        if latest_only and len(source_files) > 1:
+            latest = select_latest_file(source_files)
+            print(f"Multiple files for {date_str}: "
+                  f"{[os.path.basename(f) for f in source_files]}, "
+                  f"using latest: {os.path.basename(latest)}")
+            source_files = [latest]
 
-                shutil.copy2(source_file, dest_file)  # copy file with metadata
-                copied_files += 1
-                print(f"Copied: {filename} → {target_folder}")
+        # Create destination folder by date
+        folder_name = f"{date_str[:4]}.{date_str[4:6]}.{date_str[6:8]}"
+        target_folder = os.path.join(temp_dir, folder_name)
+        os.makedirs(target_folder, exist_ok=True)
+
+        for source_file in source_files:
+            filename = os.path.basename(source_file)
+            dest_file = os.path.join(target_folder, filename)
+            shutil.copy2(source_file, dest_file)  # copy file with metadata
+            copied_files += 1
+            print(f"Copied: {filename} → {target_folder}")
 
     # Copy grid.nc if it exists in root_dir
     grid_path = os.path.join(root_dir, "grid.nc")
