@@ -30,7 +30,7 @@ import os
 import shutil
 import sys
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import yaml
 from repurpose.img2ts import Img2Ts
@@ -66,53 +66,61 @@ def extend_ts(img_path, ts_path):
                          f"series setup or provide overview.yml in {ts_path}.")
 
     props = read_yaml_from_folder(ts_path)
-    startdate = pd.to_datetime(props['last_day']).to_pydatetime()
+    if 'parameters' not in props:
+        raise ValueError(
+            f"{out_file} has no 'parameters' field. Is this a time series "
+            f"directory? Note the argument order: extend_ts(img_path, "
+            f"ts_path) / `smap_l3 update_ts IMG_PATH TS_PATH`.")
+
+    # The last day in the time series is already included, so we start
+    # with the day after. Otherwise, the last day would be appended twice.
+    ts_last_day = pd.to_datetime(props['last_day']).to_pydatetime()
+    startdate = ts_last_day + timedelta(days=1)
     _, last_day = get_first_last_day_images(img_path)
 
-    if startdate is None or last_day is None:
-        raise ValueError("No start and/or end date provided.")
+    if last_day is None:
+        raise ValueError(f"No image data found in {img_path}. Note the "
+                         f"argument order: extend_ts(img_path, ts_path) / "
+                         f"`smap_l3 update_ts IMG_PATH TS_PATH`.")
 
-    startdate = pd.to_datetime(startdate).to_pydatetime()
     last_day = pd.to_datetime(last_day).to_pydatetime()
-    organize_smap_files(img_path, start_date=startdate, end_date=last_day)
+
+    if startdate > last_day:
+        print(f"No extension required. Time series end: {ts_last_day.date()},"
+              f" images end: {last_day.date()}")
+        return
+
     img_path_temp = os.path.join(img_path, "temp")
-    if startdate < last_day:
+    try:
+        organize_smap_files(img_path, start_date=startdate,
+                            end_date=last_day)
+        reshuffle(
+            img_path_temp,
+            ts_path,
+            startdate,
+            last_day,
+            props['parameters'],
+            time_key="tb_time_seconds",
+            grid=EASE36CellGrid(only_land=True),
+            overpass="BOTH",
+            var_overpass_str=True)
+    finally:
+        if os.path.isdir(img_path_temp):
+            shutil.rmtree(img_path_temp)
 
-        try:
-            reshuffle(
-                img_path_temp,
-                ts_path,
-                startdate,
-                last_day,
-                props['parameters'],
-                time_key="tb_time_seconds",
-                grid=EASE36CellGrid(only_land=True),
-                overpass="BOTH",
-                var_overpass_str=True)
+    # Keep all other fields (e.g. 'parameters'), 'comment' first.
+    new_props = {
+        'comment': ("DO NOT CHANGE THIS FILE MANUALLY! Required for "
+                    "data update."),
+        'last_day': last_day.strftime("%Y-%m-%d"),
+        'last_update': datetime.now().strftime("%Y-%m-%d-%H:%M:%S"),
+    }
+    for k, v in props.items():
+        if k not in new_props:
+            new_props[k] = v
 
-            props[
-                'comment'] = ("DO NOT CHANGE THIS FILE MANUALLY! Required for "
-                              "data update.")
-            props['last_day'] = str(last_day)
-            props['last_update'] = str(datetime.now())
-
-            # Ensure 'comment' is the first key when writing
-            ordered_props = {
-                'comment': props['comment'],
-                'last_day': props['last_day'],
-                'last_update': props['last_update'],
-                # add any other props here in desired order
-            }
-
-            with open(out_file, 'w') as f:
-                yaml.dump(ordered_props, f, default_flow_style=False,
-                          sort_keys=False)
-        except Exception as e:
-            pass
-
-        shutil.rmtree(img_path_temp)
-    else:
-        print(f"No extension required From: {startdate} To: {last_day}")
+    with open(out_file, 'w') as f:
+        yaml.dump(new_props, f, default_flow_style=False, sort_keys=False)
 
 
 def reshuffle(input_root,
@@ -168,9 +176,18 @@ def reshuffle(input_root,
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
-    # get time series attributes from first day of data.
-    print(startdate)
-    data = input_dataset.read(startdate)
+    # get time series attributes from first available day of data (the
+    # start date itself might be missing).
+    data, day = None, startdate
+    while day <= enddate:
+        try:
+            data = input_dataset.read(day)
+            break
+        except IOError:
+            day += timedelta(days=1)
+    if data is None:
+        raise IOError(f"No image found between {startdate} and {enddate} "
+                      f"in {input_root}")
 
     # Define the input grid, applying user-specified subgrid or using the
     # default

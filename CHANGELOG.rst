@@ -4,6 +4,15 @@ Changelog
 
 Unreleased
 ==========
+- If multiple (re-processed) files exist for a day, always use the latest
+  one (highest CRID, then highest file counter), both when reading images and
+  when organizing files for reshuffling (``select_latest_file``)
+- ``update_ts`` / ``extend_ts`` starts on the day after the last day in the
+  time series (the last day was appended twice before), keeps the
+  ``parameters`` in ``overview.yml`` and no longer silently ignores errors
+- ``smap_l3 reshuffle`` refuses to write into a directory that already
+  contains time series files (it would append duplicate data)
+- Add missing dependencies ``click``, ``pyyaml``, ``xarray``
 
 Version 0.8.1
 =============
